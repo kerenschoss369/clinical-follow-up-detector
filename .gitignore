@@ -1,0 +1,26 @@
+# Environment variables
+.env
+.env.*
+
+# Keep environment-variable examples
+!.env.example
+
+# Node
+node_modules/
+dist/
+coverage/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Operating system
+.DS_Store
+Thumbs.db

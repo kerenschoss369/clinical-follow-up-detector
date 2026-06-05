@@ -1,0 +1,98 @@
+---
+alwaysApply: true
+---
+
+---
+description: React and TypeScript frontend conventions
+globs:
+  - "apps/web/src/**/*.ts"
+  - "apps/web/src/**/*.tsx"
+alwaysApply: false
+---
+
+# Frontend responsibilities
+
+The frontend is responsible for:
+
+- Accepting pasted text or one .txt file
+- Showing validation errors
+- Sending analysis requests to the Node API
+- Showing loading, success, empty, and error states
+- Displaying extracted actions
+- Showing source evidence
+- Allowing confirm, edit, reject, and complete operations
+
+The frontend must not:
+
+- Call the Python AI service directly
+- Call the LLM provider directly
+- Store secret keys
+- Contain prompt logic
+- Make medical decisions
+- Automatically confirm an action
+
+# React conventions
+
+- Use React function components.
+- Use TypeScript for all application code.
+- Avoid `any`.
+- Define shared domain types in a dedicated types folder.
+- Keep API calls in service modules, not directly inside visual components.
+- Keep components focused on one responsibility.
+- Prefer props and local state unless shared state is genuinely necessary.
+- Do not add Redux, Zustand, or another global state library for this project.
+- Do not add a component library unless explicitly requested.
+- Use controlled inputs for editable forms.
+- Always handle loading, empty, and error states.
+
+# Component structure
+
+Prefer components such as:
+
+- NoteInput
+- AnalyzeButton
+- ActionList
+- ActionCard
+- EvidenceSection
+- StatusBadge
+- EditActionForm
+
+Do not split a component merely to reduce line count. Split it when it has an independent responsibility.
+
+# Type safety
+
+Do not duplicate API types across multiple files unnecessarily.
+
+Use explicit unions for:
+
+- action type
+- priority
+- review status
+- completion status
+
+Do not use unchecked type assertions to silence TypeScript errors.
+
+# User experience
+
+- Disable Analyze while a request is running.
+- Prevent empty notes from being submitted.
+- Accept only .txt files.
+- Show a clear message when no actions are found.
+- Preserve the original source evidence exactly as returned.
+- Clearly label actions that need review.
+- Never present an AI-generated item as confirmed by default.
+
+# Styling
+
+Keep styling simple and professional.
+
+Prioritize:
+
+- readability
+- clear hierarchy
+- visible states
+- accessible labels
+- keyboard-usable buttons
+- sufficient contrast
+
+Do not spend time creating animations or advanced visual effects unless explicitly requested.

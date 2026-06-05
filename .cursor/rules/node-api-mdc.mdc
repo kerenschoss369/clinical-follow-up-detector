@@ -1,0 +1,111 @@
+---
+alwaysApply: true
+---
+
+---
+description: Node.js and Express API responsibilities and conventions
+globs:
+  - "apps/api/src/**/*.ts"
+alwaysApply: false
+---
+
+# Node API responsibility
+
+The Node API is the application backend and orchestration layer.
+
+It owns:
+
+- HTTP endpoints used by React
+- Request validation
+- Calling the Python AI service
+- Mapping Python responses to application entities
+- Database persistence
+- Action review status
+- Action completion status
+- Controlled error responses
+
+It does not own:
+
+- LLM prompts
+- Direct LLM calls
+- AI-output interpretation
+- Medical reasoning
+
+# Layer boundaries
+
+Use a simple structure:
+
+- routes: map HTTP paths to controllers
+- controllers: translate HTTP requests and responses
+- services: implement application workflows
+- repositories: access SQLite
+- schemas: Zod request validation
+- middleware: shared error handling
+
+Do not introduce dependency injection frameworks.
+
+Do not create interfaces and classes for every function unless they provide a clear testing or replacement benefit.
+
+# Validation
+
+Validate all external input with Zod.
+
+Validate:
+
+- note text is present
+- note text is a string
+- note text is within the configured length limit
+- status values are from allowed enums
+- action updates contain only supported fields
+- identifiers are present and valid
+
+Do not trust data from React.
+Do not trust data from the Python service without checking its expected shape.
+
+# Error handling
+
+Use consistent application errors.
+
+Return clear status codes:
+
+- 400 for invalid input
+- 404 for missing resources
+- 409 for invalid workflow transitions when appropriate
+- 502 when the Python AI service fails
+- 500 for unexpected internal errors
+
+Do not expose stack traces, environment variables, API keys, or raw provider errors to the frontend.
+
+Log enough server-side context to debug failures without logging full medical note text.
+
+# Workflow rules
+
+Allowed review statuses:
+
+- pending
+- confirmed
+- rejected
+
+Allowed completion statuses:
+
+- open
+- completed
+
+Rules:
+
+- Newly extracted actions start as pending and open.
+- A rejected action cannot be completed.
+- An action should normally be confirmed before being marked completed.
+- Review status and completion status are separate concepts.
+
+# API design
+
+Prefer these endpoints:
+
+- POST /api/notes/analyze
+- GET /api/notes/:noteId
+- PATCH /api/actions/:actionId
+
+Keep endpoint responses predictable and documented.
+
+Do not create extra endpoints unless they support an actual user flow.

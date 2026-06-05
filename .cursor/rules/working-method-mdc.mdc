@@ -1,0 +1,69 @@
+---
+alwaysApply: true
+---
+
+---
+description: Controls how Cursor plans, edits, explains, and reviews changes
+alwaysApply: true
+---
+
+# Working method
+
+Before implementing a non-trivial change:
+
+1. Restate the requested behavior.
+2. Identify the files that need to change.
+3. Explain the proposed flow.
+4. Mention any assumptions.
+5. Wait for approval when the change affects architecture, dependencies, database schema, or API contracts.
+
+For small isolated changes, implement directly but summarize what changed afterward.
+
+# Change discipline
+
+- Make only the changes required for the current task.
+- Do not refactor unrelated code.
+- Do not rename unrelated variables, files, or functions.
+- Do not reformat entire files unless requested.
+- Do not replace working code solely because another style is preferred.
+- Preserve existing project structure and naming conventions.
+- Prefer editing existing files over creating unnecessary abstractions.
+- Keep each change small enough to review.
+
+# Explanation requirements
+
+After implementing a feature, explain:
+
+- Which files changed
+- What changed in each file
+- The request flow
+- Important validation
+- Important failure cases
+- How to test the feature manually
+- What the developer should be able to explain in an interview
+
+When generating code, do not claim it works unless it has been tested or verified.
+
+When a command must be run, explain:
+
+- From which directory to run it
+- What the command does
+- What successful output should look like
+
+# Uncertainty
+
+Do not invent missing project details.
+
+When required information is missing:
+
+- State the assumption clearly, or
+- Ask one focused question if the assumption could significantly change the implementation.
+
+# Code ownership
+
+The developer must understand and be able to explain all generated code.
+
+Prefer readable code over clever code.
+Avoid unnecessary generic abstractions.
+Avoid deeply nested logic.
+Avoid premature optimization.

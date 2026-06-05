@@ -1,0 +1,94 @@
+---
+description: 
+alwaysApply: true
+---
+
+---
+description: Python FastAPI AI-service conventions
+globs:
+  - "apps/ai-service/**/*.py"
+alwaysApply: false
+---
+
+# AI service responsibility
+
+The Python service owns:
+
+- Prompt construction
+- LLM-provider communication
+- Parsing model output
+- Pydantic validation
+- Evidence verification
+- AI-specific retries and timeouts
+- Returning structured extraction results
+
+It does not own:
+
+- Application persistence
+- Review workflow
+- Completion workflow
+- Frontend-specific formatting
+- Authentication
+- Medical diagnosis
+
+# Python conventions
+
+- Use Python type hints.
+- Use Pydantic models for request and response structures.
+- Use snake_case for Python names.
+- Keep route handlers thin.
+- Put prompt construction in a dedicated module.
+- Put provider-specific code in a dedicated client module.
+- Put extraction and validation logic in a service module.
+- Avoid global mutable state.
+- Avoid broad `except Exception` unless the exception is logged and converted into a controlled service error.
+- Do not silently ignore malformed model output.
+
+# Suggested modules
+
+- main.py
+- models.py
+- prompts.py
+- llm_client.py
+- extraction_service.py
+- exceptions.py
+
+Do not create additional layers without a clear need.
+
+# API endpoints
+
+Provide:
+
+- GET /health
+- POST /extract-actions
+
+The extraction endpoint accepts note text and returns only validated structured data.
+
+# Model output
+
+The LLM must return structured data matching the Pydantic response model.
+
+Reject or safely handle:
+
+- invalid JSON
+- missing fields
+- invalid enum values
+- empty evidence
+- unsupported action types
+- unsupported priorities
+
+Do not return unvalidated raw model text to Node.
+
+# Provider isolation
+
+Do not spread provider-specific SDK calls throughout the codebase.
+
+Keep them inside the LLM client so the provider can be mocked during tests or replaced later.
+
+# Configuration
+
+Read provider keys, model names, timeouts, and limits from environment variables.
+
+Never hardcode API keys.
+Never commit .env files.
+Provide an .env.example containing variable names only.

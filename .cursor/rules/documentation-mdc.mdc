@@ -1,0 +1,87 @@
+---
+alwaysApply: true
+---
+
+---
+description: README and interview documentation requirements
+globs:
+  - "README.md"
+  - "docs/**/*.md"
+alwaysApply: false
+---
+
+# Documentation purpose
+
+Documentation must help another developer run the project and help the project author explain it in an interview.
+
+# README requirements
+
+Include:
+
+- Project overview
+- Problem statement
+- Scope
+- Safety disclaimer
+- Architecture
+- Technology stack
+- Service responsibilities
+- Request flow
+- Setup instructions
+- Environment variables
+- Commands to run each service
+- API endpoints
+- LLM usage
+- Structured-output schema
+- Validation strategy
+- Human-review workflow
+- Test instructions
+- Known limitations
+- Future improvements
+
+# Accuracy
+
+Do not document features that are not implemented.
+
+Do not say the project is:
+
+- production-ready
+- medically validated
+- HIPAA compliant
+- secure for patient data
+- clinically accurate
+
+unless those claims have actually been established, which is outside this project scope.
+
+# Setup instructions
+
+For every setup command:
+
+- state the directory
+- show the exact command
+- explain its purpose
+- mention required environment variables
+
+# Architecture explanation
+
+Clearly explain:
+
+React -> Node API -> Python AI service -> LLM
+
+Also explain:
+
+Node API -> SQLite
+
+Document why React does not call the LLM directly and why Node and Python have separate responsibilities.
+
+# Interview notes
+
+Maintain docs/interview-notes.md with:
+
+- main architecture decisions
+- tradeoffs
+- failure scenarios
+- LLM risks
+- validation strategy
+- likely interview questions
+- concise answers
+- improvements that would be needed for production

@@ -1,0 +1,71 @@
+---
+alwaysApply: true
+---
+
+---
+description: Core project scope, architecture, and non-negotiable constraints
+alwaysApply: true
+---
+
+# Project
+
+This repository contains a three-day portfolio project called Clinical Follow-Up Detector.
+
+The application analyzes fictional medical text notes and extracts explicit treatment and follow-up actions into structured, reviewable tasks.
+
+# Technology stack
+
+- Frontend: React and TypeScript
+- Application API: Node.js, Express, and TypeScript
+- AI service: Python and FastAPI
+- Database: SQLite
+- AI integration: one external LLM provider
+- Validation: Zod in Node.js and Pydantic in Python
+
+# Service responsibilities
+
+- React owns presentation and user interactions.
+- Node.js owns API orchestration, workflow state, validation, and persistence.
+- Python owns prompt construction, LLM communication, AI-response parsing, and AI-response validation.
+- SQLite stores notes, extracted actions, review state, and completion state.
+- The browser must never communicate directly with the LLM provider.
+
+# Scope constraints
+
+Do not add:
+
+- Authentication
+- User accounts
+- OCR
+- PDF parsing
+- RAG
+- Vector databases
+- Message queues
+- Microservices beyond the existing Node and Python services
+- Email or SMS notifications
+- Cloud infrastructure
+- Complex permissions
+- Medical diagnosis
+- Treatment recommendations
+- Real patient data
+
+Prefer the smallest implementation that satisfies the current requirement.
+
+Do not introduce new libraries, frameworks, services, or architectural patterns without first explaining why they are necessary.
+
+# Medical-use boundary
+
+This is a portfolio demonstration using fictional medical notes.
+
+The system may extract only information explicitly written in the note.
+
+It must not:
+
+- Diagnose a condition
+- Recommend a treatment
+- Change a dosage
+- Infer a missing clinical decision
+- Present AI output as medically verified
+- Automatically confirm an extracted action
+
+All extracted actions require human review.

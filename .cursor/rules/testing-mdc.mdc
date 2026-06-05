@@ -1,0 +1,77 @@
+---
+alwaysApply: true
+---
+
+---
+description: Testing strategy for frontend, Node API, and Python AI service
+globs:
+  - "**/*.test.ts"
+  - "**/*.test.tsx"
+  - "**/*.spec.ts"
+  - "**/tests/**/*.py"
+  - "**/test_*.py"
+alwaysApply: false
+---
+
+# Testing goals
+
+Tests should protect important behavior, especially boundaries and failure cases.
+
+Do not create tests merely to increase test count.
+
+# General rules
+
+- Tests must be deterministic.
+- Tests must not call a real paid LLM.
+- Mock the LLM client.
+- Mock network boundaries where appropriate.
+- Use fictional note text.
+- Test observable behavior, not private implementation details.
+- Keep fixtures short and readable.
+
+# Python tests
+
+Prioritize:
+
+- valid structured model output is accepted
+- malformed JSON is rejected
+- missing required fields are rejected
+- unsupported enum values are rejected
+- evidence not found in the note is flagged or rejected
+- ambiguous deadlines remain null and require review
+- completed treatment is not incorrectly returned as a future task
+- empty action list is valid
+- provider timeout becomes a controlled error
+
+# Node tests
+
+Prioritize:
+
+- empty note returns 400
+- oversized note returns 400
+- valid request calls the Python service
+- Python-service failure returns a controlled 502
+- invalid status update returns 400
+- nonexistent note or action returns 404
+- rejected action cannot be completed
+- valid updates persist correctly
+
+# Frontend tests
+
+Prioritize:
+
+- analyze button is disabled for empty input
+- loading state appears during analysis
+- extracted actions render correctly
+- no-actions state renders correctly
+- AI-service error is shown clearly
+- confirming or rejecting an action updates the interface
+- evidence is visible
+
+# Test explanations
+
+When adding a test, explain:
+
+- what risk it protects against
+- what is mocked
+- why the expected result is correct

@@ -1,0 +1,80 @@
+---
+alwaysApply: true
+---
+
+---
+description: SQLite persistence and data-model rules
+globs:
+  - "apps/api/src/repositories/**/*.ts"
+  - "apps/api/src/db/**/*.ts"
+  - "apps/api/**/*.sql"
+alwaysApply: false
+---
+
+# Database ownership
+
+SQLite is owned by the Node API.
+
+The Python AI service must not read from or write to the application database.
+
+# Tables
+
+Keep the schema minimal.
+
+Notes should store:
+
+- id
+- original_text
+- created_at
+
+Actions should store:
+
+- id
+- note_id
+- title
+- type
+- deadline_text
+- normalized_deadline
+- priority
+- evidence
+- needs_review
+- uncertainty_reason
+- review_status
+- completion_status
+- created_at
+- updated_at
+
+# Data integrity
+
+- Every action must reference an existing note.
+- Use foreign keys.
+- Use allowed values consistently.
+- Use timestamps for created_at and updated_at.
+- Do not silently overwrite records.
+- Update only fields explicitly allowed by the API.
+- Preserve original source evidence.
+
+# Simplicity
+
+Do not add an ORM unless explicitly requested.
+
+Prefer a lightweight SQLite library and clearly written repository functions.
+
+Do not add:
+
+- soft deletion
+- audit tables
+- event sourcing
+- database triggers
+- caching
+- migrations frameworks
+
+unless a concrete project requirement requires them.
+
+# Sensitive data
+
+Use fictional sample data only.
+
+Do not commit real patient information.
+
+Do not log full note content during normal application operation.
