@@ -47,8 +47,12 @@ export function ActionCard({
   const review = reviewBadge(action);
   const completion = completionBadge(action);
 
-  const handleWorkflowUpdate = (patch: UpdateActionRequest) => {
-    void onActionUpdate(action.id, patch);
+  const handleWorkflowUpdate = async (patch: UpdateActionRequest) => {
+    try {
+      await onActionUpdate(action.id, patch);
+    } catch {
+      // Error is surfaced through updateError from the parent.
+    }
   };
 
   const handleEditSave = async (patch: UpdateActionRequest) => {
@@ -63,7 +67,7 @@ export function ActionCard({
   return (
     <article
       className={`action-card${isUpdating ? ' action-card--updating' : ''}`}
-      aria-busy={isUpdating}
+      aria-busy={isUpdating ? true : undefined}
     >
       <header className="action-card__header">
         {!isEditing ? (
