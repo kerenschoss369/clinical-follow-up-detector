@@ -1,0 +1,336 @@
+.app {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 3rem;
+}
+
+.app__header {
+  margin-bottom: 1.5rem;
+}
+
+.app__header h1 {
+  font-size: 1.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.app__subtitle {
+  color: #52606d;
+}
+
+.app__main {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.app__validation-error,
+.app__error {
+  color: #9b1c1c;
+  background: #fde8e8;
+  border: 1px solid #f8b4b4;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+}
+
+.app__loading {
+  color: #1e40af;
+  background: #dbeafe;
+  border: 1px solid #93c5fd;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+}
+
+.note-input {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.note-input__label,
+.note-input__file-label,
+.action-card__label,
+.evidence-section__title {
+  font-weight: 600;
+}
+
+.note-input__textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #cbd2d9;
+  border-radius: 0.5rem;
+  resize: vertical;
+  background: #ffffff;
+}
+
+.note-input__textarea:focus-visible,
+.analyze-button:focus-visible,
+.note-input__file:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.note-input__file-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.analyze-button {
+  align-self: flex-start;
+  background: #2563eb;
+  color: #ffffff;
+  border: none;
+  border-radius: 0.5rem;
+  padding: 0.65rem 1.1rem;
+  font-weight: 600;
+}
+
+.analyze-button:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.analyze-button:disabled {
+  background: #9aa5b1;
+}
+
+.action-list__title {
+  font-size: 1.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.action-list__items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.action-list--empty {
+  background: #ffffff;
+  border: 1px dashed #cbd2d9;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  color: #52606d;
+}
+
+.action-card {
+  background: #ffffff;
+  border: 1px solid #d9e2ec;
+  border-radius: 0.75rem;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.action-card__header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.action-card__title {
+  font-size: 1.125rem;
+}
+
+.action-card__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.status-badge {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.status-badge--type {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+.status-badge--priority {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-badge--pending {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.status-badge--confirmed {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.status-badge--rejected {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.status-badge--open {
+  background: #e0f2fe;
+  color: #075985;
+}
+
+.status-badge--completed {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-badge--needsReview {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.action-card__deadline-text {
+  margin-top: 0.25rem;
+}
+
+.action-card__normalized-deadline {
+  margin-top: 0.25rem;
+  color: #52606d;
+  font-size: 0.95rem;
+}
+
+.action-card__uncertainty {
+  color: #9b1c1c;
+  background: #fff5f5;
+  border-left: 4px solid #f87171;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.25rem;
+}
+
+.evidence-section__quote {
+  margin: 0.35rem 0 0;
+  padding: 0.75rem;
+  background: #f8fafc;
+  border-left: 4px solid #94a3b8;
+  border-radius: 0.25rem;
+  white-space: pre-wrap;
+}
+
+.action-card--updating {
+  opacity: 0.85;
+}
+
+.action-card__updating {
+  color: #1e40af;
+  font-weight: 600;
+}
+
+.action-card__error {
+  color: #9b1c1c;
+  background: #fde8e8;
+  border: 1px solid #f8b4b4;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+}
+
+.action-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.action-controls__button {
+  border: 1px solid #cbd2d9;
+  border-radius: 0.5rem;
+  padding: 0.45rem 0.8rem;
+  background: #ffffff;
+  font-weight: 600;
+}
+
+.action-controls__button:focus-visible,
+.edit-action-form__button:focus-visible,
+.edit-action-form__field input:focus-visible,
+.edit-action-form__field select:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.action-controls__button--confirm {
+  background: #d1fae5;
+  border-color: #6ee7b7;
+}
+
+.action-controls__button--reject {
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
+.action-controls__button--complete {
+  background: #dbeafe;
+  border-color: #93c5fd;
+}
+
+.action-controls__button:disabled,
+.edit-action-form__button:disabled {
+  opacity: 0.6;
+}
+
+.edit-action-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.edit-action-form__fieldset {
+  border: 1px solid #d9e2ec;
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.edit-action-form__legend {
+  font-weight: 600;
+  padding: 0 0.25rem;
+}
+
+.edit-action-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.edit-action-form__field input,
+.edit-action-form__field select {
+  padding: 0.5rem;
+  border: 1px solid #cbd2d9;
+  border-radius: 0.5rem;
+}
+
+.edit-action-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.edit-action-form__button {
+  border: none;
+  border-radius: 0.5rem;
+  padding: 0.45rem 0.8rem;
+  font-weight: 600;
+}
+
+.edit-action-form__button--save {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.edit-action-form__button--cancel {
+  background: #e5e7eb;
+  color: #1f2933;
+}
+
+.edit-action-form__error {
+  color: #9b1c1c;
+}
