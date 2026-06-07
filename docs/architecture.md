@@ -1,133 +1,209 @@
 # Architecture
 
-This document describes how the Clinical Follow-Up Detector is structured today (Day 1) and what is planned for later days.
+This document describes the **implemented** architecture of the Clinical Follow-Up Detector.
 
 For endpoint shapes, field names, and enums, see [contracts.md](contracts.md).
 
 ---
 
-## Day 1 architecture (current)
-
-On Day 1, the system runs as three local services with a **deterministic mock** in the Python layer. No external LLM is called. No database is used.
-
-```mermaid
-flowchart LR
-  reactWeb["React apps/web :5173"]
-  nodeApi["Node API apps/api :3000"]
-  fastApiMock["FastAPI deterministic mock apps/ai-service :8000"]
-  reactWeb -->|"POST /api/notes/analyze"| nodeApi
-  nodeApi -->|"POST /extract-actions"| fastApiMock
-```
-
-### Request flow (analyze)
-
-1. The user pastes text or uploads a `.txt` file in the React app.
-2. React validates input client-side and sends `POST /api/notes/analyze` with `{ "text": "..." }`.
-3. The Node API validates the note with Zod, reads `reference_date` from config, and calls the Python service.
-4. The Python service applies rule-based extraction (currently CBC + repeat + seven-day patterns) and returns validated Pydantic models.
-5. The Node API validates the Python response, maps `snake_case` to `camelCase`, assigns in-memory IDs and workflow defaults (`reviewStatus: pending`, `completionStatus: open`), and returns `201 Created`.
-6. React renders the returned actions or an empty-state message.
-
-### Service responsibilities (Day 1)
-
-| Service | Owns | Does not own |
-|---------|------|--------------|
-| **React** (`apps/web`) | Input, loading/error/success UI, read-only action display | LLM calls, persistence, workflow updates |
-| **Node API** (`apps/api`) | Public API, Zod validation, Python client, field mapping, in-memory response shaping | Prompts, extraction logic, SQLite |
-| **Python AI** (`apps/ai-service`) | `/health`, `/extract-actions`, Pydantic validation, deterministic mock extraction | Persistence, review/completion state, browser-facing API |
-
-### Field naming boundary
-
-- Python uses `snake_case` (for example `deadline_text`, `needs_review`).
-- React and Node use `camelCase` (for example `deadlineText`, `needsReview`).
-- **Node maps** Python responses before returning data to React.
-
-### Error propagation
-
-- Python returns structured errors to Node (`400`, `502`, `504` per contracts).
-- Node converts failures into controlled application errors (`502` for unavailable or invalid AI responses).
-- React shows user-facing messages; stack traces and provider details are not exposed.
-
-### Day 1 mock behavior
-
-The Python `extraction_service` is a **deterministic rule-based mock**, not an LLM:
-
-- It looks for a sentence containing both a CBC/complete-blood-count reference and a repeat instruction.
-- If a seven-day deadline phrase is present, it normalizes the date using `reference_date`.
-- Notes that do not match those patterns return an empty `actions` list.
-
-This is intentional for Day 1 integration: the full stack can be tested without API keys or nondeterministic model output.
-
----
-
-## Planned architecture (Day 2+)
-
-The following components are **designed** in [contracts.md](contracts.md) but **not implemented** yet. They are shown here for context only.
+## System overview
 
 ```mermaid
 flowchart TB
-  subgraph plannedBrowser [Browser]
-    webApp[React apps/web]
-  end
-  subgraph plannedNode [Node API]
-    expressApi[Express + Zod]
-    sqlite[(SQLite — planned)]
-  end
-  subgraph plannedPython [Python AI]
-    fastApi[FastAPI + Pydantic]
-    llmClient[LLM client — planned]
-  end
-  llmProvider[External LLM provider — planned]
-  webApp --> expressApi
-  expressApi --> fastApi
-  fastApi --> llmClient
-  llmClient --> llmProvider
-  expressApi -.-> sqlite
+  reactWeb["React apps/web :5173"]
+  nodeApi["Node API apps/api :3000"]
+  fastApi["FastAPI apps/ai-service :8000"]
+  openai["OpenAI LLM"]
+  sqlite[(SQLite)]
+  reactWeb -->|"camelCase JSON"| nodeApi
+  nodeApi -->|"snake_case JSON"| fastApi
+  fastApi --> openai
+  nodeApi --> sqlite
 ```
 
-### Planned additions
-
-| Component | Purpose |
-|-----------|---------|
-| **External LLM** | Replace the deterministic mock with provider-backed extraction |
-| **SQLite** | Persist notes, actions, review status, and completion status |
-| **Workflow endpoints** | `GET /api/notes/:noteId`, `PATCH /api/actions/:actionId` |
-| **Review UI** | Confirm, reject, edit, and complete actions in React |
-| **Automated tests** | Boundary and failure-case coverage across all three services |
-
-### Planned persistence model
-
-When SQLite is added, Node will own:
-
-- `notes` — `id`, `original_text`, `created_at`
-- `actions` — extraction fields plus `review_status`, `completion_status`, timestamps
-
-See contracts §9 for the full schema. On Day 1, analyze responses use generated IDs but **nothing is saved** between requests.
+- **React** sends note text and action updates to the Node API only.
+- **Node** validates input, calls Python, maps field names, assigns IDs and workflow defaults, enforces transitions, and persists to SQLite.
+- **Python** builds prompts, calls OpenAI, parses structured JSON, validates with Pydantic, and post-validates evidence and deadlines.
+- The browser never calls Python or the LLM directly.
 
 ---
 
-## Security boundaries
+## Service ownership
 
-This is a portfolio project using **fictional medical notes only**.
-
-The system must not:
-
-- Store or process real patient information
-- Expose LLM API keys to the browser
-- Allow React to call an LLM provider directly
-- Present AI output as medically verified or automatically confirmed
-
-All extracted actions require human review once that workflow is built.
+| Service | Owns | Does not own |
+|---------|------|--------------|
+| **React** | Input, client validation, presentation, confirm/reject/edit/complete UI | LLM calls, persistence, prompts |
+| **Node API** | Public HTTP API, Zod validation, Python client, snake_case→camelCase mapping, IDs, workflow rules, SQLite, application errors | Prompt construction, direct LLM calls |
+| **Python AI** | Prompts, LLM client, JSON parsing, Pydantic validation, evidence/deadline post-checks, AI-specific errors | Persistence, review/completion state, browser API |
+| **SQLite** (via Node) | Notes, actions, review and completion state, timestamps | — |
 
 ---
 
-## Contract reference
+## Analyze sequence
 
-[contracts.md](contracts.md) is the source of truth for:
+```mermaid
+sequenceDiagram
+  participant Browser
+  participant React
+  participant Node
+  participant Python
+  participant LLM
+  participant DB as SQLite
+  Browser->>React: Paste note or upload .txt
+  React->>React: Client validation
+  React->>Node: POST /api/notes/analyze
+  Node->>Node: Zod validate text
+  Node->>Python: POST /extract-actions
+  Python->>LLM: Structured extraction request
+  LLM-->>Python: JSON actions
+  Python->>Python: Pydantic + evidence/deadline checks
+  Python-->>Node: snake_case actions
+  Node->>Node: Zod validate Python response
+  Node->>Node: Map to camelCase, add IDs and statuses
+  Node->>DB: Transaction insert note + actions
+  Node-->>React: 201 note + actions
+  React-->>Browser: Render action cards
+```
 
-- Shared enums (action type, priority, review status, completion status)
-- React ↔ Node and Node ↔ Python request/response shapes
-- Error codes and HTTP status codes
-- Planned SQLite schema and workflow rules
+**Failure behavior:** If Python returns an error or the response fails Zod validation, Node returns `502` and **does not** write to SQLite.
 
-Do not change contracts without reviewing every affected service.
+---
+
+## GET note sequence
+
+```mermaid
+sequenceDiagram
+  participant Client
+  participant Node
+  participant DB as SQLite
+  Client->>Node: GET /api/notes/:noteId
+  Node->>DB: findNoteWithActionsById
+  alt Note found
+    DB-->>Node: note + actions rows
+    Node->>Node: Map to camelCase API shape
+    Node-->>Client: 200 note.text + actions
+  else Note missing
+    Node-->>Client: 404 NOTE_NOT_FOUND
+  end
+```
+
+**Product note:** The Node endpoint is implemented and tested. The React UI does not call it today, so a browser refresh clears the session view even though data remains in SQLite.
+
+---
+
+## PATCH action sequence
+
+```mermaid
+sequenceDiagram
+  participant Browser
+  participant React
+  participant Node
+  participant DB as SQLite
+  Browser->>React: Confirm, reject, edit, or complete
+  React->>Node: PATCH /api/actions/:actionId
+  Node->>Node: Zod validate allowed fields
+  Node->>DB: Load current action
+  Node->>Node: assertWorkflowTransition
+  alt Invalid transition
+    Node-->>React: 409 INVALID_ACTION_TRANSITION
+  else Valid
+    Node->>DB: Update action
+    Node-->>React: 200 action
+    React-->>Browser: Update card in local state
+  end
+```
+
+**Workflow rules (Node):**
+
+- New extractions start as `reviewStatus: pending`, `completionStatus: open`.
+- `completionStatus: completed` requires `reviewStatus: confirmed`.
+- Rejected actions cannot be completed.
+- Rejecting sets `completionStatus` back to `open`.
+- Completed actions cannot be rejected or reopened.
+- `evidence`, `needsReview`, and `uncertaintyReason` are not PATCH-editable.
+
+---
+
+## Naming boundary
+
+| Layer | Convention | Example |
+|-------|--------------|---------|
+| React / Node API responses | `camelCase` | `deadlineText`, `needsReview` |
+| Python request/response | `snake_case` | `deadline_text`, `needs_review` |
+| SQLite columns | `snake_case` | `deadline_text`, `review_status` |
+
+**Node maps** at two boundaries:
+
+1. Python → application entities (analyze)
+2. SQLite rows ↔ API entities (read/write)
+
+React must never receive Python field names.
+
+---
+
+## Validation boundaries
+
+| Layer | What is validated |
+|-------|-------------------|
+| **React** | Non-empty note, max length, `.txt` only, empty file rejected |
+| **Node (analyze)** | Request body; Python response shape and enums; uncertainty field pairing |
+| **Node (PATCH)** | Allowed fields only (`.strict()`); at least one field; workflow transitions |
+| **Python** | Request body; LLM JSON schema; Pydantic models; evidence in note; deadline rules; urgent-only-with-explicit-wording |
+
+---
+
+## Error propagation
+
+### Node → React
+
+All Node errors use:
+
+```json
+{ "error": { "code": "...", "message": "..." } }
+```
+
+Common codes: `INVALID_NOTE`, `NOTE_TOO_LONG`, `NOTE_NOT_FOUND`, `ACTION_NOT_FOUND`, `INVALID_REQUEST`, `INVALID_ACTION_TRANSITION`, `AI_SERVICE_UNAVAILABLE`, `INVALID_AI_RESPONSE`, `INTERNAL_ERROR`.
+
+### Python → Node
+
+Python returns structured errors per [contracts.md](contracts.md) §8, including `LLM_TIMEOUT` (504), `LLM_PROVIDER_ERROR` (502), and `INVALID_MODEL_OUTPUT` (502).
+
+**Known cross-service behavior:** Node's `aiServiceClient` maps **all** non-OK Python HTTP responses to `502 AI_SERVICE_UNAVAILABLE` for the browser. Distinct Python error codes are not forwarded to React today.
+
+### Python internal
+
+Unhandled exceptions may return FastAPI's default 500 envelope rather than the structured `ErrorResponse` shape.
+
+---
+
+## Persistence and transactions
+
+- **Owner:** Node API only (`better-sqlite3`).
+- **Default path:** `data/app.db` (override with `DATABASE_PATH`).
+- **Schema:** `notes` and `actions` per contracts §9.
+- **Booleans:** `needs_review` stored as `0` / `1`, exposed to React as JavaScript booleans.
+- **Analyze save:** `insertNoteWithActions` runs in a SQLite transaction. Invalid AI responses abort before any write.
+
+---
+
+## Testing architecture
+
+| Service | Framework | Command | Strategy |
+|---------|-----------|---------|----------|
+| **Node API** | Vitest + Supertest | `npm test` in `apps/api` | In-memory SQLite; mocked Python client; tests analyze, GET, PATCH, errors |
+| **React** | Vitest + Testing Library | `npm test` in `apps/web` | Mocked `fetch`; tests analyze flow, workflow controls, error states |
+| **Python** | pytest + pytest-asyncio | `python -m pytest tests\` in `apps/ai-service` | Injected `llm_complete` mock; blocks real OpenAI calls; tests extraction rules and HTTP error mapping |
+
+No test calls a paid LLM in the default test suites.
+
+---
+
+## Security and privacy boundaries
+
+- Fictional medical notes only.
+- LLM API keys stay in the Python service environment.
+- React does not store or receive provider credentials.
+- Full note text must not appear in routine error responses to the browser.
+- The system does not diagnose, prescribe, or auto-confirm extracted actions.
+
+This portfolio project is not production-ready, not HIPAA compliant, and not validated for real patient data.
