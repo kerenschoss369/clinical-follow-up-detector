@@ -21,7 +21,7 @@ flowchart TB
   nodeApi --> sqlite
 ```
 
-- **React** sends note text and action updates to the Node API only.
+- **React** sends note text, saved-note reload requests, and action updates to the Node API only.
 - **Node** validates input, calls Python, maps field names, assigns IDs and workflow defaults, enforces transitions, and persists to SQLite.
 - **Python** builds prompts, calls OpenAI, parses structured JSON, validates with Pydantic, and post-validates evidence and deadlines.
 - The browser never calls Python or the LLM directly.
@@ -32,7 +32,7 @@ flowchart TB
 
 | Service | Owns | Does not own |
 |---------|------|--------------|
-| **React** | Input, client validation, presentation, confirm/reject/edit/complete UI | LLM calls, persistence, prompts |
+| **React** | Input, client validation, presentation, saved-note reload, confirm/reject/edit/complete UI | LLM calls, persistence, prompts |
 | **Node API** | Public HTTP API, Zod validation, Python client, snake_case→camelCase mapping, IDs, workflow rules, SQLite, application errors | Prompt construction, direct LLM calls |
 | **Python AI** | Prompts, LLM client, JSON parsing, Pydantic validation, evidence/deadline post-checks, AI-specific errors | Persistence, review/completion state, browser API |
 | **SQLite** (via Node) | Notes, actions, review and completion state, timestamps | — |
@@ -62,6 +62,7 @@ sequenceDiagram
   Node->>Node: Map to camelCase, add IDs and statuses
   Node->>DB: Transaction insert note + actions
   Node-->>React: 201 note + actions
+  React->>React: setNoteIdInUrl(note.id)
   React-->>Browser: Render action cards
 ```
 
@@ -73,21 +74,25 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-  participant Client
+  participant Browser
+  participant React
   participant Node
   participant DB as SQLite
-  Client->>Node: GET /api/notes/:noteId
+  Browser->>React: Open ?noteId= URL or submit note ID
+  React->>Node: GET /api/notes/:noteId
   Node->>DB: findNoteWithActionsById
   alt Note found
     DB-->>Node: note + actions rows
     Node->>Node: Map to camelCase API shape
-    Node-->>Client: 200 note.text + actions
+    Node-->>React: 200 note.text + actions
+    React-->>Browser: Render note text and action cards
   else Note missing
-    Node-->>Client: 404 NOTE_NOT_FOUND
+    Node-->>React: 404 NOTE_NOT_FOUND
+    React-->>Browser: Show controlled error
   end
 ```
 
-**Product note:** The Node endpoint is implemented and tested. The React UI does not call it today, so a browser refresh clears the session view even though data remains in SQLite.
+**Product note:** After analyze, React writes `?noteId=` into the URL so a refresh reloads the saved note and actions. Users can also load a saved note manually by ID. The app does not automatically remember the most recently opened note when the URL contains no `noteId`.
 
 ---
 
@@ -191,10 +196,10 @@ Unhandled exceptions may return FastAPI's default 500 envelope rather than the s
 | Service | Framework | Command | Strategy |
 |---------|-----------|---------|----------|
 | **Node API** | Vitest + Supertest | `npm test` in `apps/api` | In-memory SQLite; mocked Python client; tests analyze, GET, PATCH, errors |
-| **React** | Vitest + Testing Library | `npm test` in `apps/web` | Mocked `fetch`; tests analyze flow, workflow controls, error states |
+| **React** | Vitest + Testing Library | `npm test` in `apps/web` | Mocked `fetch`; tests analyze flow, saved-note reload, workflow controls, error states |
 | **Python** | pytest + pytest-asyncio | `python -m pytest tests\` in `apps/ai-service` | Injected `llm_complete` mock; blocks real OpenAI calls; tests extraction rules and HTTP error mapping |
 
-No test calls a paid LLM in the default test suites.
+No test calls a paid LLM in the default test suites. The repository includes around 70 automated tests across React, Node, and Python.
 
 ---
 

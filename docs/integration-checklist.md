@@ -133,6 +133,7 @@ $actionId = $response.actions[0].id
 2. Paste contents of [`samples/01-clear-test-deadline.txt`](../samples/01-clear-test-deadline.txt)
 3. Click **Analyze**
 4. Confirm actions render with evidence visible
+5. Confirm the URL includes `?noteId=...` after analyze
 
 ---
 
@@ -156,7 +157,13 @@ Invoke-RestMethod -Uri "http://localhost:3000/api/notes/note_does_not_exist"
 
 Expected: `404` with `error.code = NOTE_NOT_FOUND`
 
-**Product limitation:** React does not call this endpoint. Persistence is verified via API or a new analyze in the UI.
+### Browser (saved note reload)
+
+1. After analyze, confirm the URL contains `?noteId=...`
+2. Refresh the page — note text and actions should reload from SQLite
+3. Open the app without `noteId` in the URL, enter a saved note ID in **Load saved note by ID**, and click **Load note**
+
+**Product note:** Saved notes can be restored through `?noteId=` or manual note ID entry. The app does not automatically remember the last opened note when the URL contains no `noteId`.
 
 ---
 
@@ -270,36 +277,22 @@ Restart Python with valid credentials before continuing UI tests.
 
 ## Automated test commands
 
-Run from each app directory. All suites mock external LLM calls.
+All suites mock external LLM calls. The repository includes around 70 automated tests across React, Node, and Python.
 
-### Node API
+Replace `<repository-root>` with your local clone path (for example, `C:\Users\you\Projects\clinical-follow-up-detector`).
 
 ```powershell
-Set-Location apps\api
+Set-Location <repository-root>\apps\api
 npm test
-```
 
-Expected: 24 tests passed (4 files)
-
-### React
-
-```powershell
-Set-Location apps\web
+Set-Location <repository-root>\apps\web
 npm test
-```
 
-Expected: 17 tests passed
-
-### Python
-
-```powershell
-Set-Location apps\ai-service
+Set-Location <repository-root>\apps\ai-service
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements-dev.txt
 python -m pytest tests\ -q
 ```
-
-Expected: 25 tests passed
 
 ---
 
@@ -309,13 +302,13 @@ LLM output is **not guaranteed** to be identical across runs. Use these as contr
 
 | Sample | Contract-level expectation |
 |--------|----------------------------|
-| `01-clear-test-deadline.txt` | At least one explicit `test` action |
-| `02-appointment-follow-up.txt` | `appointment` action if explicitly stated |
+| `01-clear-test-deadline.txt` | Multiple explicit actions (`test`, `appointment`, `medication`, `warning`); no future task for completed radiotherapy |
+| `02-appointment-follow-up.txt` | `appointment` follow-up in two weeks |
 | `03-urgent-warning.txt` | `warning` with `urgent` only if note says so |
-| `04-ambiguous-deadline.txt` | Action with `needsReview: true` for vague timing |
+| `04-ambiguous-deadline.txt` | Action with `needsReview: true` for vague timing (`soon`) |
 | `05-no-follow-up-actions.txt` | **No actions** |
-| `06-completed-treatment.txt` | **No future task** for completed chemo |
-| `07-prompt-injection.txt` | Injection text treated as note content; extract only explicit clinical actions |
+| `06-completed-treatment.txt` | **No future task** for completed chemotherapy |
+| `07-prompt-injection.txt` | Prompt-injection text is treated as untrusted note content; only explicit clinical follow-up actions should be extracted |
 
 ---
 
@@ -331,9 +324,4 @@ LLM output is **not guaranteed** to be identical across runs. Use these as contr
 - [ ] `npm test` passes in `apps\api` and `apps\web`
 - [ ] `python -m pytest tests\` passes in `apps\ai-service`
 - [ ] Browser workflow: analyze, confirm or reject, edit, complete
-
----
-
-## Historical reference
-
-Early mock-only setup steps are archived in [day-1-integration-checklist.md](day-1-integration-checklist.md).
+- [ ] Browser reload: refresh with `?noteId=` restores note and actions; manual load by ID works

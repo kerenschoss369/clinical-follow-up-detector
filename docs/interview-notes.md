@@ -22,7 +22,7 @@ flowchart TB
   node["Node API + Zod + SQLite"]
   python["Python FastAPI + Pydantic"]
   llm["OpenAI"]
-  react -->|"POST analyze, PATCH action"| node
+  react -->|"POST analyze, GET note, PATCH action"| node
   node -->|"POST /extract-actions"| python
   python --> llm
   node --> sqlite[(SQLite)]
@@ -54,7 +54,7 @@ flowchart TB
 7. Node validates the Python payload with Zod, maps fields, assigns IDs, sets `pending`/`open`.
 8. Node saves note + actions in a SQLite transaction.
 9. Node returns `201` with camelCase entities.
-10. React renders action cards. User reviews each item.
+10. React writes `?noteId=` into the URL and renders action cards. User reviews each item.
 
 If Python fails or returns invalid JSON, Node returns `502` and **does not save**.
 
@@ -62,12 +62,13 @@ If Python fails or returns invalid JSON, Node returns `502` and **does not save*
 
 ## GET note flow
 
-1. Client calls `GET /api/notes/:noteId`.
-2. Node loads note and actions from SQLite.
-3. Node maps rows to camelCase API shape including `note.text`.
-4. Returns `200` or `404 NOTE_NOT_FOUND`.
+1. User opens a URL with `?noteId=` (set automatically after analyze) or enters a note ID in the load form.
+2. React calls `GET /api/notes/:noteId`.
+3. Node loads note and actions from SQLite.
+4. Node maps rows to camelCase API shape including `note.text`.
+5. React renders the note text and action cards, or shows a controlled error on `404`.
 
-Implemented and tested on the API. React does not call it today, so a browser refresh clears the session view even though data persists.
+Saved notes can be restored through `?noteId=` or manual note ID entry. The app does not automatically remember the most recently opened note when the URL contains no `noteId`.
 
 ---
 
@@ -146,7 +147,7 @@ Rejected actions cannot be completed. Completion requires prior confirmation.
 - Note is wrapped in `<clinical_note>` tags and treated as untrusted data.
 - System instructions tell the model to ignore instructions inside the note.
 - Tests confirm injection-like sentences do not crash the service.
-- Extraction still follows explicit clinical wording only.
+- Prompt-injection text is treated as untrusted note content; only explicit clinical follow-up actions should be extracted.
 
 ### Error handling
 
@@ -179,10 +180,12 @@ Rejected actions cannot be completed. Completion requires prior confirmation.
 - Invalid input rejected before AI call
 - No persistence on AI failure
 - GET/PATCH contract shapes and workflow 409s
-- UI disables analyze on empty input, shows loading/errors, updates on confirm/reject/complete
+- UI disables analyze on empty input, shows loading/errors, reloads saved notes from URL or load form, updates on confirm/reject/complete
 - Evidence verification, vague deadlines, completed-treatment drop, prompt-injection note content
 
 **What is not integration-tested end-to-end with a live LLM:** full three-service analyze with real OpenAI (by design — cost and nondeterminism).
+
+The repository includes around 70 automated tests across React, Node, and Python. All suites mock the LLM.
 
 ---
 
@@ -194,7 +197,7 @@ Rejected actions cannot be completed. Completion requires prior confirmation.
 | SQLite | Simple persistence for portfolio | Not ideal for high concurrency |
 | Structured JSON from LLM | Validatable output | Model must comply with schema |
 | OpenAI direct from Python | Fast to build | Vendor lock-in at AI layer |
-| Session-only React state | Simpler UI | No reload-by-ID without more frontend work |
+| URL-based note reload | Refresh restores persisted sessions when `?noteId=` is present | No automatic recall of last note without `noteId` in the URL |
 | Node collapses Python errors | Simple frontend error handling | Loses fine-grained AI error codes in UI |
 
 ---
@@ -203,8 +206,7 @@ Rejected actions cannot be completed. Completion requires prior confirmation.
 
 - No authentication
 - Not production-ready or HIPAA compliant
-- LLM nondeterminism
-- No React GET-note reload
+- Saved notes can be restored through `?noteId=` or manual note ID entry, but the app does not automatically remember the last opened note when the URL contains no `noteId`
 - Live analyze requires OpenAI credentials
 - Node does not forward distinct Python LLM error codes to React
 - Fictional data only
@@ -217,7 +219,6 @@ Rejected actions cannot be completed. Completion requires prior confirmation.
 - Observability without logging full notes
 - Retry/backoff and circuit breaking for LLM calls
 - Distinct error propagation to the UI
-- Frontend persistence/reload flow
 - Model evaluation harness with golden notes
 - Secrets management and key rotation
 - Database migrations, backups, and encryption at rest
@@ -287,9 +288,9 @@ No. PATCH allows title, type, deadlines, priority, and status fields only. Evide
 
 Node returns `502 AI_SERVICE_UNAVAILABLE`. No partial database write occurs.
 
-### 16. Why might GET note exist without a React screen?
+### 16. How does saved-note reload work in the UI?
 
-The API supports reload and integration testing. The portfolio UI focuses on the paste-analyze-review flow in one session. GET is a valid backend capability and a documented product limitation in the frontend.
+After analyze, React adds `?noteId=` to the URL and calls `GET /api/notes/:noteId` on refresh. Users can also load a saved note manually by ID. The app does not automatically restore the last session when the URL has no `noteId`.
 
 ### 17. Is this production-ready?
 
