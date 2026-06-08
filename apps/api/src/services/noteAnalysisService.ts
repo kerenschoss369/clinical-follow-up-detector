@@ -1,11 +1,11 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { getReferenceDate } from '../config.js';
 import { extractActions } from '../clients/aiServiceClient.js';
 import { insertNoteWithActions } from '../repositories/notesRepository.js';
 import type { PythonAction } from '../schemas/pythonExtractionSchema.js';
 
 function createNoteId(): string {
-  return `note_${randomUUID()}`;
+  return `note_${randomBytes(5).toString('hex')}`;
 }
 
 function createActionId(): string {

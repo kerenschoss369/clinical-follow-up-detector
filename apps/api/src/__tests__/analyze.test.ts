@@ -106,7 +106,7 @@ describe('POST /api/notes/analyze', () => {
       .send({ text: sampleNoteText });
 
     expect(response.status).toBe(201);
-    expect(response.body.note.id).toMatch(/^note_/);
+    expect(response.body.note.id).toMatch(/^note_[a-f0-9]{10}$/);
     expect(response.body.actions).toHaveLength(1);
     expect(response.body.actions[0].reviewStatus).toBe('pending');
     expect(response.body.actions[0].completionStatus).toBe('open');
