@@ -8,7 +8,7 @@ export const validPythonResponse = {
       type: 'test' as const,
       deadline_text: 'within seven days',
       normalized_deadline: null,
-      priority: 'high' as const,
+      priority: 'medium' as const,
       evidence: sampleNoteText,
       needs_review: false,
       uncertainty_reason: null,

@@ -50,6 +50,24 @@ describe('errorHandler', () => {
     expect(JSON.stringify(response.body)).not.toContain('secret-value');
     expect(JSON.stringify(response.body)).not.toContain('foo.js');
   });
+
+  it('does not expose submitted note text in unhandled error responses', () => {
+    const response = createMockResponse();
+    const noteText =
+      'PRIVATE_MARKER_xK9m2pQ7 The patient should repeat a CBC within seven days.';
+    const noteLeakError = new Error(`persistence failed for note: ${noteText}`);
+
+    errorHandler(noteLeakError, {} as Request, response, vi.fn() as NextFunction);
+
+    expect(response.statusCode).toBe(500);
+    expect(response.body).toEqual({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'An unexpected server error occurred.',
+      },
+    });
+    expect(JSON.stringify(response.body)).not.toContain(noteText);
+  });
 });
 
 describe('unexpected route errors', () => {

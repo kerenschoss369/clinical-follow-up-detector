@@ -12,17 +12,116 @@ const INVALID_TRANSITION_MESSAGE =
 const REJECTED_CANNOT_COMPLETE_MESSAGE =
   'A rejected action cannot be marked as completed.';
 
-const COMPLETED_CANNOT_REJECT_MESSAGE =
-  'A completed action cannot be rejected.';
+const TERMINAL_REJECTED_MESSAGE =
+  'A rejected action cannot be changed.';
+
+const TERMINAL_COMPLETED_MESSAGE =
+  'A completed action cannot be changed.';
+
+function isEditableState(
+  reviewStatus: ActionUpdateFields['reviewStatus'],
+  completionStatus: ActionUpdateFields['completionStatus'],
+): boolean {
+  return (
+    (reviewStatus === 'pending' && completionStatus === 'open') ||
+    (reviewStatus === 'confirmed' && completionStatus === 'open')
+  );
+}
+
+function hasContentFieldEdits(patch: UpdateActionInput): boolean {
+  return (
+    patch.title !== undefined ||
+    patch.type !== undefined ||
+    patch.deadlineText !== undefined ||
+    patch.normalizedDeadline !== undefined ||
+    patch.priority !== undefined
+  );
+}
+
+function buildUpdateFields(
+  patch: UpdateActionInput,
+  completionStatus: ActionUpdateFields['completionStatus'],
+): ActionUpdateFields {
+  const updateFields: ActionUpdateFields = { ...patch };
+
+  if (patch.reviewStatus === 'rejected') {
+    updateFields.completionStatus = 'open';
+  } else if (patch.completionStatus !== undefined) {
+    updateFields.completionStatus = completionStatus;
+  }
+
+  return updateFields;
+}
+
+function assertPendingOpenTransition(
+  patch: UpdateActionInput,
+): ActionUpdateFields {
+  const nextCompletionStatus = patch.completionStatus ?? 'open';
+
+  if (nextCompletionStatus === 'completed') {
+    throw new AppError(
+      409,
+      'INVALID_ACTION_TRANSITION',
+      INVALID_TRANSITION_MESSAGE,
+    );
+  }
+
+  if (patch.reviewStatus === 'rejected') {
+    return buildUpdateFields(patch, 'open');
+  }
+
+  if (
+    patch.reviewStatus === 'pending' ||
+    patch.reviewStatus === 'confirmed' ||
+    patch.reviewStatus === undefined
+  ) {
+    return buildUpdateFields(patch, 'open');
+  }
+
+  throw new AppError(
+    409,
+    'INVALID_ACTION_TRANSITION',
+    INVALID_TRANSITION_MESSAGE,
+  );
+}
+
+function assertConfirmedOpenTransition(
+  patch: UpdateActionInput,
+): ActionUpdateFields {
+  if (patch.reviewStatus === 'rejected' || patch.reviewStatus === 'pending') {
+    throw new AppError(
+      409,
+      'INVALID_ACTION_TRANSITION',
+      INVALID_TRANSITION_MESSAGE,
+    );
+  }
+
+  const nextCompletionStatus = patch.completionStatus ?? 'open';
+
+  if (nextCompletionStatus === 'completed') {
+    return buildUpdateFields(patch, 'completed');
+  }
+
+  if (
+    patch.reviewStatus === 'confirmed' ||
+    patch.reviewStatus === undefined ||
+    patch.completionStatus === 'open'
+  ) {
+    return buildUpdateFields(patch, 'open');
+  }
+
+  throw new AppError(
+    409,
+    'INVALID_ACTION_TRANSITION',
+    INVALID_TRANSITION_MESSAGE,
+  );
+}
 
 function assertWorkflowTransition(
   currentReviewStatus: ActionUpdateFields['reviewStatus'],
   currentCompletionStatus: ActionUpdateFields['completionStatus'],
   patch: UpdateActionInput,
 ): ActionUpdateFields {
-  const nextReviewStatus = patch.reviewStatus ?? currentReviewStatus;
-  let nextCompletionStatus = patch.completionStatus ?? currentCompletionStatus;
-
   if (
     patch.reviewStatus === 'rejected' &&
     patch.completionStatus === 'completed'
@@ -35,30 +134,26 @@ function assertWorkflowTransition(
   }
 
   if (
-    patch.reviewStatus === 'rejected' &&
-    currentCompletionStatus === 'completed'
+    currentReviewStatus === 'rejected' &&
+    currentCompletionStatus === 'open'
   ) {
-    throw new AppError(
-      409,
-      'INVALID_ACTION_TRANSITION',
-      COMPLETED_CANNOT_REJECT_MESSAGE,
-    );
-  }
+    if (hasContentFieldEdits(patch)) {
+      throw new AppError(
+        409,
+        'INVALID_ACTION_TRANSITION',
+        TERMINAL_REJECTED_MESSAGE,
+      );
+    }
 
-  if (patch.reviewStatus === 'rejected') {
-    nextCompletionStatus = 'open';
-  }
+    if (patch.reviewStatus !== undefined && patch.reviewStatus !== 'rejected') {
+      throw new AppError(
+        409,
+        'INVALID_ACTION_TRANSITION',
+        TERMINAL_REJECTED_MESSAGE,
+      );
+    }
 
-  if (patch.completionStatus === 'open' && currentCompletionStatus === 'completed') {
-    throw new AppError(
-      409,
-      'INVALID_ACTION_TRANSITION',
-      INVALID_TRANSITION_MESSAGE,
-    );
-  }
-
-  if (nextCompletionStatus === 'completed') {
-    if (nextReviewStatus === 'rejected') {
+    if (patch.completionStatus === 'completed') {
       throw new AppError(
         409,
         'INVALID_ACTION_TRANSITION',
@@ -66,35 +161,59 @@ function assertWorkflowTransition(
       );
     }
 
-    if (nextReviewStatus !== 'confirmed') {
+    return buildUpdateFields(patch, 'open');
+  }
+
+  if (
+    currentReviewStatus === 'confirmed' &&
+    currentCompletionStatus === 'completed'
+  ) {
+    if (hasContentFieldEdits(patch)) {
       throw new AppError(
         409,
         'INVALID_ACTION_TRANSITION',
-        INVALID_TRANSITION_MESSAGE,
+        TERMINAL_COMPLETED_MESSAGE,
       );
     }
 
     if (
-      currentCompletionStatus === 'completed' &&
-      patch.completionStatus === 'completed'
+      patch.reviewStatus === 'rejected' ||
+      patch.reviewStatus === 'pending'
     ) {
+      throw new AppError(
+        409,
+        'INVALID_ACTION_TRANSITION',
+        TERMINAL_COMPLETED_MESSAGE,
+      );
+    }
+
+    if (patch.completionStatus === 'open') {
       throw new AppError(
         409,
         'INVALID_ACTION_TRANSITION',
         INVALID_TRANSITION_MESSAGE,
       );
     }
+
+    return buildUpdateFields(patch, 'completed');
   }
 
-  const updateFields: ActionUpdateFields = { ...patch };
-
-  if (patch.reviewStatus === 'rejected') {
-    updateFields.completionStatus = 'open';
-  } else if (patch.completionStatus !== undefined) {
-    updateFields.completionStatus = nextCompletionStatus;
+  if (!isEditableState(currentReviewStatus, currentCompletionStatus)) {
+    throw new AppError(
+      409,
+      'INVALID_ACTION_TRANSITION',
+      INVALID_TRANSITION_MESSAGE,
+    );
   }
 
-  return updateFields;
+  if (
+    currentReviewStatus === 'pending' &&
+    currentCompletionStatus === 'open'
+  ) {
+    return assertPendingOpenTransition(patch);
+  }
+
+  return assertConfirmedOpenTransition(patch);
 }
 
 export function updateActionById(actionId: string, patch: UpdateActionInput) {

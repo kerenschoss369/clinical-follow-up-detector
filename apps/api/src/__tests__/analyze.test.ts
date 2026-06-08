@@ -3,8 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Express } from 'express';
 import { extractActions } from '../../dist/clients/aiServiceClient.js';
 import { AppError } from '../../dist/errors/appError.js';
+import * as notesRepository from '../../dist/repositories/notesRepository.js';
+import { pythonExtractionResponseSchema } from '../../dist/schemas/pythonExtractionSchema.js';
 import {
   emptyPythonResponse,
+  invalidPythonResponse,
   sampleNoteText,
   validPythonResponse,
 } from './helpers/fixtures.js';
@@ -44,6 +47,24 @@ describe('POST /api/notes/analyze', () => {
     const response = await request(app)
       .post('/api/notes/analyze')
       .send({ text: '   ' });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe('INVALID_NOTE');
+    expect(mockedExtractActions).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 when text is missing', async () => {
+    const response = await request(app).post('/api/notes/analyze').send({});
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe('INVALID_NOTE');
+    expect(mockedExtractActions).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 when text is not a string', async () => {
+    const response = await request(app)
+      .post('/api/notes/analyze')
+      .send({ text: 123 });
 
     expect(response.status).toBe(400);
     expect(response.body.error.code).toBe('INVALID_NOTE');
@@ -148,6 +169,47 @@ describe('POST /api/notes/analyze', () => {
 
     expect(countNotes()).toBe(0);
     expect(countActions()).toBe(0);
+  });
+
+  it('returns 502 INVALID_AI_RESPONSE and saves nothing for invalid extraction shape', async () => {
+    mockedExtractActions.mockImplementation(async () => {
+      const parsed = pythonExtractionResponseSchema.safeParse(invalidPythonResponse);
+      if (!parsed.success) {
+        throw new AppError(
+          502,
+          'INVALID_AI_RESPONSE',
+          'The AI service returned an invalid response. No data was saved.',
+        );
+      }
+
+      return parsed.data;
+    });
+
+    const response = await request(app)
+      .post('/api/notes/analyze')
+      .send({ text: sampleNoteText });
+
+    expect(response.status).toBe(502);
+    expect(response.body.error.code).toBe('INVALID_AI_RESPONSE');
+    expect(countNotes()).toBe(0);
+    expect(countActions()).toBe(0);
+  });
+
+  it('does not save a note when persistence fails during analyze', async () => {
+    mockedExtractActions.mockResolvedValue(validPythonResponse);
+    vi.spyOn(notesRepository, 'insertNoteWithActions').mockImplementation(() => {
+      throw new Error('simulated database failure during insert');
+    });
+
+    const response = await request(app)
+      .post('/api/notes/analyze')
+      .send({ text: sampleNoteText });
+
+    expect(response.status).toBe(500);
+    expect(countNotes()).toBe(0);
+    expect(countActions()).toBe(0);
+
+    vi.restoreAllMocks();
   });
 });
 
