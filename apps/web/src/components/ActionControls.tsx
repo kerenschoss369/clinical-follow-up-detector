@@ -10,18 +10,30 @@ interface ActionControlsProps {
   onComplete: () => void;
 }
 
-function canConfirm(action: Action): boolean {
-  return action.reviewStatus === 'pending';
+function isPendingOpen(action: Action): boolean {
+  return action.reviewStatus === 'pending' && action.completionStatus === 'open';
 }
 
-function canReject(action: Action): boolean {
-  return action.reviewStatus === 'pending';
-}
-
-function canComplete(action: Action): boolean {
+function isConfirmedOpen(action: Action): boolean {
   return (
     action.reviewStatus === 'confirmed' && action.completionStatus === 'open'
   );
+}
+
+function canConfirm(action: Action): boolean {
+  return isPendingOpen(action);
+}
+
+function canReject(action: Action): boolean {
+  return isPendingOpen(action);
+}
+
+function canComplete(action: Action): boolean {
+  return isConfirmedOpen(action);
+}
+
+function canEdit(action: Action): boolean {
+  return isPendingOpen(action) || isConfirmedOpen(action);
 }
 
 export function ActionControls({
@@ -65,15 +77,17 @@ export function ActionControls({
         </button>
       ) : null}
 
-      <button
-        type="button"
-        className="action-controls__button action-controls__button--edit"
-        onClick={onEdit}
-        disabled={controlsDisabled}
-        aria-label={`Edit action: ${action.title}`}
-      >
-        Edit
-      </button>
+      {canEdit(action) ? (
+        <button
+          type="button"
+          className="action-controls__button action-controls__button--edit"
+          onClick={onEdit}
+          disabled={controlsDisabled}
+          aria-label={`Edit action: ${action.title}`}
+        >
+          Edit
+        </button>
+      ) : null}
 
       {canComplete(action) ? (
         <button

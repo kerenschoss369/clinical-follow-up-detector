@@ -469,6 +469,55 @@ describe('action workflow', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('does not offer edit for rejected actions', async () => {
+    const user = userEvent.setup();
+    const rejectedAction = createAction({
+      id: 'action_rejected',
+      reviewStatus: 'rejected',
+    });
+
+    await analyzeWithActions(user, [rejectedAction]);
+
+    expect(
+      screen.queryByRole('button', {
+        name: 'Edit action: Repeat CBC blood test',
+      }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('does not offer edit for completed actions', async () => {
+    const user = userEvent.setup();
+    const completedAction = createAction({
+      id: 'action_completed',
+      reviewStatus: 'confirmed',
+      completionStatus: 'completed',
+    });
+
+    await analyzeWithActions(user, [completedAction]);
+
+    expect(
+      screen.queryByRole('button', {
+        name: 'Edit action: Repeat CBC blood test',
+      }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('offers edit for confirmed open actions', async () => {
+    const user = userEvent.setup();
+    const confirmedAction = createAction({
+      id: 'action_confirmed',
+      reviewStatus: 'confirmed',
+    });
+
+    await analyzeWithActions(user, [confirmedAction]);
+
+    expect(
+      screen.getByRole('button', {
+        name: 'Edit action: Repeat CBC blood test',
+      }),
+    ).toBeInTheDocument();
+  });
+
   it('preserves previous action data when PATCH fails', async () => {
     const user = userEvent.setup();
     const fetchMock = vi.mocked(fetch);

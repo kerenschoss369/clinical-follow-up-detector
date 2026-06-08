@@ -27,7 +27,7 @@ export function createAction(options: CreateActionOptions = {}): Action {
     type: options.type ?? 'test',
     deadlineText: options.deadlineText ?? 'within seven days',
     normalizedDeadline: null,
-    priority: options.priority ?? 'high',
+    priority: options.priority ?? 'medium',
     evidence: options.evidence ?? sampleNoteText,
     needsReview: options.needsReview ?? false,
     uncertaintyReason: options.uncertaintyReason ?? null,

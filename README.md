@@ -275,7 +275,7 @@ Extracted action fields: `title`, `type`, `deadlineText`, `normalizedDeadline`, 
 
 All suites mock the LLM — no paid API calls during tests.
 
-The repository includes around 70 automated tests across React, Node, and Python.
+The repository includes automated test suites across React, Node, and Python. All suites must pass.
 
 Replace `<repository-root>` with your local clone path (for example, `C:\Users\you\Projects\clinical-follow-up-detector`).
 

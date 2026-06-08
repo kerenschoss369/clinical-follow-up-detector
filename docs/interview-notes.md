@@ -185,7 +185,7 @@ Rejected actions cannot be completed. Completion requires prior confirmation.
 
 **What is not integration-tested end-to-end with a live LLM:** full three-service analyze with real OpenAI (by design — cost and nondeterminism).
 
-The repository includes around 70 automated tests across React, Node, and Python. All suites mock the LLM.
+The repository includes automated test suites across React, Node, and Python. All suites must pass. All suites mock the LLM.
 
 ---
 
@@ -266,7 +266,7 @@ Persistence includes review and completion state that Python never sees. Node al
 
 ### 10. How do you prevent a rejected action from being completed?
 
-Node `actionUpdateService` enforces transitions and returns `409 INVALID_ACTION_TRANSITION`. Tests cover rejected→completed.
+Node `actionUpdateService` enforces an explicit state machine and returns `409 INVALID_ACTION_TRANSITION` for illegal changes. Terminal states are `rejected+open` and `confirmed+completed`. Tests cover allowed transitions, terminal-state rejection, idempotent repeats, and edit restrictions.
 
 ### 11. How do you test without paying for LLM calls?
 

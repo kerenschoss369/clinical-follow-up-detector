@@ -29,6 +29,14 @@ Copy from root [`.env.example`](../.env.example) or [apps/api/.env.example](../a
 | `AI_SERVICE_TIMEOUT_MS` | `30000` | No |
 | `DATABASE_PATH` | `data/app.db` | No |
 
+**Recommended for integration testing and interview demos:**
+
+```env
+REFERENCE_DATE=2026-06-05
+```
+
+When `REFERENCE_DATE` is set to `2026-06-05`, the test note *"within seven days"* may resolve to `normalizedDeadline = 2026-06-12`. For production-like local usage you may omit `REFERENCE_DATE` and default to the current date, but relative deadlines will then depend on the day you run the demo.
+
 ### Python AI — `apps/ai-service/.env`
 
 | Variable | Required |
@@ -86,6 +94,8 @@ Start each service in a **separate PowerShell window** and leave it running.
 
 ## Health checks
 
+The current health endpoints verify that each process is running. Dependency-aware readiness checks would be added for production deployment.
+
 ### Python AI
 
 ```powershell
@@ -104,35 +114,89 @@ Expected: `status = ok`, `service = api`
 
 ---
 
-## Analyze test
+## Automated contract tests vs live LLM smoke tests
 
-### curl-style (PowerShell)
+### Automated contract tests (mocked)
+
+Run the test suites listed under [Automated test commands](#automated-test-commands). These use mocks and may assert exact behavior:
+
+- exact error codes and status transitions
+- schema validation
+- persistence and empty-action behavior
+- no partial database saves on failure
+
+### Live LLM smoke tests (manual)
+
+Live checks use a real LLM and must **not** require a specific action count, exact wording, or exact priority unless the note explicitly supports a contract-level expectation.
+
+Live smoke checks validate:
+
+- HTTP `201` on analyze
+- `note.id` exists
+- `actions` is an array (zero actions is valid)
+- every returned action matches the public schema
+- every non-empty `evidence` value occurs verbatim in the submitted note
+- enums contain only allowed values
+- no unsupported medical advice is introduced
+
+When PATCH steps require an action ID, use a sample that produced at least one action, such as [`samples/01-clear-test-deadline.txt`](../samples/01-clear-test-deadline.txt).
+
+---
+
+## Analyze test (live LLM smoke)
+
+### PowerShell
 
 ```powershell
-$body = @{ text = "The patient should repeat a CBC within seven days." } | ConvertTo-Json
-Invoke-RestMethod -Method POST -Uri "http://localhost:3000/api/notes/analyze" -ContentType "application/json" -Body $body
+$noteText = "The patient should repeat a CBC within seven days."
+$body = @{ text = $noteText } | ConvertTo-Json
+
+$response = Invoke-RestMethod `
+    -Method POST `
+    -Uri "http://localhost:3000/api/notes/analyze" `
+    -ContentType "application/json" `
+    -Body $body
+
+$noteId = $response.note.id
+$actionId = $null
+
+if ($response.actions.Count -gt 0) {
+    $actionId = $response.actions[0].id
+}
 ```
 
 Expected:
 
 - HTTP `201`
 - `note.id` present
-- At least one action with `reviewStatus = pending`, `completionStatus = open`
-- `evidence` matches note wording
+- `actions` is an array (may be empty)
+- for each action: `reviewStatus = pending`, `completionStatus = open`
+- for each action with non-empty `evidence`: the evidence string occurs verbatim in `$noteText`
+- if evidence cannot be verified, the action has `needsReview = true` and a non-empty `uncertaintyReason`
+- when `REFERENCE_DATE=2026-06-05` is configured, an action with deadline text *within seven days* may have `normalizedDeadline = 2026-06-12`
 
-Save `$response.note.id` and `$response.actions[0].id` for later steps:
+Evidence check example:
 
 ```powershell
-$noteId = $response.note.id
-$actionId = $response.actions[0].id
+foreach ($action in $response.actions) {
+    if ($action.evidence -and $noteText.Contains($action.evidence)) {
+        Write-Host "Evidence verified for action $($action.id)"
+    } elseif ($action.evidence) {
+        if (-not $action.needsReview -or -not $action.uncertaintyReason) {
+            Write-Warning "Evidence not in note but action was not flagged for review: $($action.id)"
+        }
+    }
+}
 ```
+
+PATCH tests below require `$actionId`. If the smoke analyze returned zero actions, analyze [`samples/01-clear-test-deadline.txt`](../samples/01-clear-test-deadline.txt) in the browser or PowerShell first.
 
 ### Browser
 
 1. Open `http://localhost:5173`
 2. Paste contents of [`samples/01-clear-test-deadline.txt`](../samples/01-clear-test-deadline.txt)
 3. Click **Analyze**
-4. Confirm actions render with evidence visible
+4. Confirm actions render with evidence visible (or the no-actions state if the model returns none)
 5. Confirm the URL includes `?noteId=...` after analyze
 
 ---
@@ -152,7 +216,12 @@ Expected:
 Unknown ID:
 
 ```powershell
-Invoke-RestMethod -Uri "http://localhost:3000/api/notes/note_does_not_exist"
+try {
+  Invoke-RestMethod -Uri "http://localhost:3000/api/notes/note_does_not_exist"
+} catch {
+  $_.Exception.Response.StatusCode.value__
+  $_.ErrorDetails.Message
+}
 ```
 
 Expected: `404` with `error.code = NOTE_NOT_FOUND`
@@ -168,6 +237,8 @@ Expected: `404` with `error.code = NOTE_NOT_FOUND`
 ---
 
 ## PATCH action tests
+
+Requires `$actionId` from an analyze that returned at least one action.
 
 ### Confirm
 
@@ -225,6 +296,42 @@ try {
 
 Expected: HTTP `409`, `error.code = INVALID_ACTION_TRANSITION`
 
+Rejected actions are terminal: they cannot be confirmed, completed, or edited.
+
+---
+
+## Invalid input checks (Node API)
+
+Each case should return a controlled `400`, must not call the LLM, and must not modify the database.
+
+```powershell
+$uri = "http://localhost:3000/api/notes/analyze"
+
+# Missing text
+try { Invoke-RestMethod -Method POST -Uri $uri -ContentType "application/json" -Body '{}' } catch { $_.ErrorDetails.Message }
+
+# Empty text
+try { Invoke-RestMethod -Method POST -Uri $uri -ContentType "application/json" -Body (@{ text = "" } | ConvertTo-Json) } catch { $_.ErrorDetails.Message }
+
+# Whitespace-only text
+try { Invoke-RestMethod -Method POST -Uri $uri -ContentType "application/json" -Body (@{ text = "   " } | ConvertTo-Json) } catch { $_.ErrorDetails.Message }
+
+# Non-string text
+try { Invoke-RestMethod -Method POST -Uri $uri -ContentType "application/json" -Body '{"text":123}' } catch { $_.ErrorDetails.Message }
+
+# Oversized text (adjust length if MAX_NOTE_LENGTH differs)
+$oversized = "a" * 20001
+try { Invoke-RestMethod -Method POST -Uri $uri -ContentType "application/json" -Body (@{ text = $oversized } | ConvertTo-Json) } catch { $_.ErrorDetails.Message }
+```
+
+Expected codes: `INVALID_NOTE` or `NOTE_TOO_LONG` as appropriate.
+
+### Browser file input checks
+
+- Upload a non-`.txt` file — client shows an error; analyze is not submitted
+- Upload an empty `.txt` file — client shows an error
+- Upload or paste content exceeding `MAX_NOTE_LENGTH` — client shows an error
+
 ---
 
 ## LLM failure behavior
@@ -263,6 +370,13 @@ Expected: Python `502`, `error.code = LLM_PROVIDER_ERROR`
 
 Restart Python with valid credentials before continuing UI tests.
 
+### Timeout behavior
+
+- Python uses `LLM_TIMEOUT_SECONDS` and returns `504 LLM_TIMEOUT` when the LLM does not respond in time.
+- Node uses `AI_SERVICE_TIMEOUT_MS` when calling Python.
+- When Node receives any failed Python response during analyze (including timeout), it returns a controlled upstream error to React (typically `502 AI_SERVICE_UNAVAILABLE`) without exposing provider details.
+- No data is saved after a timeout.
+
 ---
 
 ## SQLite persistence verification
@@ -273,11 +387,44 @@ Restart Python with valid credentials before continuing UI tests.
 4. Stop and restart **only** the Node API
 5. `GET` the same note again — data should still be present
 
+### Optional manual atomicity check
+
+Before a deliberate failure (Python stopped or invalid request):
+
+1. Note the current row counts in SQLite or via repeated `GET` calls
+2. Execute the failing analyze request
+3. Confirm no new note or action rows were added for that request
+
+Automated tests in `apps/api` are the primary proof that analyze saves atomically or not at all.
+
+---
+
+## Privacy and logging checks
+
+Inspect Node and Python terminal output after a few analyze and error requests:
+
+- [ ] Full note text is not logged
+- [ ] API keys are not logged
+- [ ] Full provider responses are not logged
+- [ ] Client-facing error responses do not include full submitted notes
+- [ ] Stack traces are not exposed to React
+
+---
+
+## Browser Network check
+
+Open DevTools → Network while using the app:
+
+- [ ] React calls relative `/api/...` endpoints (proxied to Node on port 3000 during `npm run dev`)
+- [ ] The browser does **not** call port `8000` (Python)
+- [ ] The browser does **not** call OpenAI or another LLM provider directly
+- [ ] Provider credentials are not present in browser requests or bundles
+
 ---
 
 ## Automated test commands
 
-All suites mock external LLM calls. The repository includes around 70 automated tests across React, Node, and Python.
+All suites mock external LLM calls. The repository includes automated test suites across React, Node, and Python. All suites must pass.
 
 Replace `<repository-root>` with your local clone path (for example, `C:\Users\you\Projects\clinical-follow-up-detector`).
 
@@ -296,7 +443,7 @@ python -m pytest tests\ -q
 
 ---
 
-## Sample note manual checks
+## Sample note manual checks (live LLM)
 
 LLM output is **not guaranteed** to be identical across runs. Use these as contract-level expectations:
 
@@ -308,7 +455,19 @@ LLM output is **not guaranteed** to be identical across runs. Use these as contr
 | `04-ambiguous-deadline.txt` | Action with `needsReview: true` for vague timing (`soon`) |
 | `05-no-follow-up-actions.txt` | **No actions** |
 | `06-completed-treatment.txt` | **No future task** for completed chemotherapy |
-| `07-prompt-injection.txt` | Prompt-injection text is treated as untrusted note content; only explicit clinical follow-up actions should be extracted |
+| `07-prompt-injection.txt` | See prompt-injection section below |
+
+### Prompt-injection sample (`07-prompt-injection.txt`)
+
+The implementation **reduces** prompt-injection risk; it does not claim absolute prevention. Mitigations include system instructions, treating note text as untrusted content, delimiters, structured output, Pydantic validation, evidence verification, and human review.
+
+Manually verify:
+
+- [ ] Embedded instructions do not change the required output schema
+- [ ] Only explicit clinical follow-up actions are returned
+- [ ] No system prompt text is returned to the client
+- [ ] No API key or environment configuration is returned
+- [ ] Non-clinical instructions in the note do not become actions on their own
 
 ---
 
@@ -316,12 +475,13 @@ LLM output is **not guaranteed** to be identical across runs. Use these as contr
 
 - [ ] All three services start in order without errors
 - [ ] Health checks pass on ports 8000 and 3000
-- [ ] Analyze returns `201` with persisted note and actions
+- [ ] Live analyze returns `201` with persisted note (actions may be empty)
 - [ ] GET note returns original text and actions by ID
-- [ ] Confirm, edit, and complete PATCH flows succeed
+- [ ] Confirm, edit, and complete PATCH flows succeed when an action exists
 - [ ] Rejected → completed returns `409`
 - [ ] LLM/provider failure returns controlled errors without partial saves
 - [ ] `npm test` passes in `apps\api` and `apps\web`
 - [ ] `python -m pytest tests\` passes in `apps\ai-service`
 - [ ] Browser workflow: analyze, confirm or reject, edit, complete
 - [ ] Browser reload: refresh with `?noteId=` restores note and actions; manual load by ID works
+- [ ] Network tab shows React → Node only; no browser → Python/LLM calls
