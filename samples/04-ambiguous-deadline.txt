@@ -1,3 +1,9 @@
-Imaging follow-up — fictional patient.
+Telehealth call summary | 2026-05-03
 
-A chest CT should be repeated soon to assess treatment response.
+Spoke with the patient by video. They report mild fatigue but deny cough, hemoptysis, or night sweats. Prior imaging was discussed.
+
+Impression: stable clinical course; imaging follow-up still needed.
+
+Plan: A chest CT should be repeated soon to assess treatment response. Compare with the prior scan at the next review.
+
+No visit date booked on this call. Patient agreed to wait for scheduling contact.

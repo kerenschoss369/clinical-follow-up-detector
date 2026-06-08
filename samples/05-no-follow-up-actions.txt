@@ -1,4 +1,7 @@
-Progress note — fictional patient.
+S: Patient seen 28 September 2026 for routine follow-up. Reports stable symptoms, sleeping well, no new complaints.
 
-Labs from last month were reviewed. No new orders at this visit.
-The patient reports stable symptoms.
+O: Examination unremarkable for this visit. Laboratory results from last month were reviewed.
+
+A: Condition unchanged. Continue current supportive care discussed previously.
+
+P: No medication changes, referrals, tests, or follow-up appointments ordered today. Patient to contact clinic if symptoms change.

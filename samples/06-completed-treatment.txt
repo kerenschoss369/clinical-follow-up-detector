@@ -1,3 +1,15 @@
-Treatment summary — fictional patient.
+DISCHARGE SUMMARY (FICTIONAL)
 
+Admission period ending: 15 January 2026
+Service: Medical Oncology
+
+HOSPITAL COURSE
+The patient completed the planned chemotherapy course without dose-limiting toxicity during the final cycle.
+
+DISCHARGE MEDICATIONS
+No new chemotherapy agents started at discharge.
+
+ACTIVITY / FOLLOW-UP
 Chemotherapy was completed last month. No further chemotherapy is planned at this visit.
+
+The patient may contact primary care for routine issues. Return to oncology only if new symptoms develop.

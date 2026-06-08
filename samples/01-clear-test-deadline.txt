@@ -1,1 +1,16 @@
-The patient should repeat a CBC within seven days.
+Patient: Fictional Test Patient
+Note date: June 6, 2026
+
+The pathology results were reviewed with the patient today.
+
+The patient should schedule a surgical consultation within ten days.
+
+A liver function blood test is required before the consultation.
+
+The current pain medication should be continued at the same dose until the next visit.
+
+The patient should arrange a follow-up appointment with the oncology team on July 2, 2026.
+
+If the patient develops chest pain, fainting, or sudden shortness of breath, they should seek urgent medical attention immediately.
+
+Radiotherapy was completed last week. No additional radiotherapy sessions are planned at this time.

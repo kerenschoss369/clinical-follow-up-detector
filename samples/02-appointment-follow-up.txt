@@ -1,3 +1,12 @@
-Follow-up visit — fictional patient.
+OUTPATIENT CLINIC NOTE — FICTIONAL
 
-Dr. Chen asked the patient to return for an oncology follow-up in two weeks.
+Visit date: 12/03/2026
+Attending: Dr. Chen, Oncology
+
+The patient attended for routine post-treatment review. Appetite and energy are improved since the last visit.
+
+Plan discussed with the patient and nursing staff. Dr. Chen asked the patient to return for an oncology follow-up in two weeks.
+
+Please bring prior imaging reports to that visit.
+
+No blood tests were ordered today.
