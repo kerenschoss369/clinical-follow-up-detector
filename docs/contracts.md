@@ -7,7 +7,9 @@ This document defines the shared data contracts between:
 * Python FastAPI AI service
 * SQLite persistence layer
 
-These contracts are the source of truth for all Cursor agents working on the project.
+These contracts are the source of truth for all services and contributors working on the project.
+
+Automated coding agents must follow the same contract-change policy as human contributors.
 
 Do not change an endpoint, field name, enum, or response structure without reviewing every affected service.
 
@@ -155,7 +157,70 @@ rejected + open
 
 A rejected action cannot be completed.
 
-An action should normally be confirmed before it can be completed.
+An action must be confirmed before it can be completed.
+
+### Valid review and completion combinations
+
+| Review status | Completion status | Valid |
+| ------------- | ----------------- | ----- |
+| `pending`     | `open`            | Yes   |
+| `confirmed`   | `open`            | Yes   |
+| `confirmed`   | `completed`       | Yes   |
+| `rejected`    | `open`            | Yes   |
+| `pending`     | `completed`       | No    |
+| `rejected`    | `completed`       | No    |
+
+### Allowed state changes
+
+```text
+pending + open → confirmed + open
+pending + open → rejected + open
+confirmed + open → confirmed + completed
+```
+
+### Terminal states
+
+```text
+rejected + open
+confirmed + completed
+```
+
+Once an action is `rejected + open`:
+
+* it cannot be confirmed
+* it cannot be completed
+* its review status cannot be changed
+* its editable fields cannot be changed
+
+Once an action is `confirmed + completed`:
+
+* it cannot be rejected
+* it cannot be reopened (`completionStatus` cannot return to `open`)
+* its editable fields cannot be changed
+
+### Idempotent updates
+
+Repeating the current review or completion state without other illegal changes returns success:
+
+```text
+confirmed → confirmed
+rejected → rejected
+completed → completed
+open → open
+```
+
+### Editing rules
+
+Editable content fields (`title`, `type`, `deadlineText`, `normalizedDeadline`, `priority`) may be updated only while the action is:
+
+```text
+pending + open
+confirmed + open
+```
+
+Editing is not allowed in terminal states.
+
+`needsReview` and `uncertaintyReason` are immutable AI-origin metadata. They do not block confirmation or completion; the human reviewer decides whether to confirm or reject after reading the uncertainty explanation.
 
 ---
 
@@ -200,6 +265,7 @@ Body:
 
 ```http
 POST /api/notes/analyze
+Content-Type: application/json
 ```
 
 ### Purpose
@@ -253,7 +319,7 @@ Body:
       "type": "test",
       "deadlineText": "within seven days",
       "normalizedDeadline": null,
-      "priority": "high",
+      "priority": "medium",
       "evidence": "The patient should repeat a CBC within seven days.",
       "needsReview": false,
       "uncertaintyReason": null,
@@ -323,7 +389,7 @@ Body:
       "type": "test",
       "deadlineText": "within seven days",
       "normalizedDeadline": null,
-      "priority": "high",
+      "priority": "medium",
       "evidence": "The patient should repeat a CBC within seven days.",
       "needsReview": false,
       "uncertaintyReason": null,
@@ -344,6 +410,7 @@ Body:
 
 ```http
 PATCH /api/actions/:actionId
+Content-Type: application/json
 ```
 
 ### Purpose
@@ -354,6 +421,25 @@ Allows the user to:
 * confirm it
 * reject it
 * mark it completed
+
+### Multi-field updates
+
+PATCH requests may contain multiple editable fields.
+
+Validation must be applied to the resulting combined action state, not to each field independently.
+
+The final state must satisfy all workflow rules.
+
+Invalid example:
+
+```json
+{
+  "reviewStatus": "rejected",
+  "completionStatus": "completed"
+}
+```
+
+This must fail with `409 INVALID_ACTION_TRANSITION` because the resulting state is invalid.
 
 ### Allowed editable fields
 
@@ -517,6 +603,7 @@ Body:
 
 ```http
 POST /extract-actions
+Content-Type: application/json
 ```
 
 ### Purpose
@@ -584,7 +671,7 @@ Body:
       "type": "test",
       "deadline_text": "within seven days",
       "normalized_deadline": "2026-06-12",
-      "priority": "high",
+      "priority": "medium",
       "evidence": "The patient should repeat a CBC within seven days.",
       "needs_review": false,
       "uncertainty_reason": null
@@ -608,6 +695,10 @@ An empty list is valid.
 # 5. Python extracted action schema
 
 Each Python action must match this structure.
+
+Actions that are only implied and are not explicitly supported by the note must not be extracted.
+
+Use `needs_review: true` only when the action itself is explicitly supported, but one or more attributes — such as timing, responsible party, date normalization, or evidence quality — remain uncertain.
 
 ## `title`
 
@@ -744,13 +835,11 @@ After parsing the LLM response, Python must verify:
 evidence exists inside the submitted note text
 ```
 
-If evidence cannot be verified, the action must not be silently accepted.
+If an action is structurally valid and explicitly supported by the note, but the extracted evidence string cannot be directly verified, the action may be kept and flagged for human review.
 
-Recommended project behavior:
+If the action itself is unsupported by the note or has no usable evidence, it must not be included in the extraction result.
 
-* keep the action
-* set `needs_review` to `true`
-* set an appropriate `uncertainty_reason`
+When evidence cannot be directly verified, Python sets `needs_review` to `true` and provides an appropriate `uncertainty_reason`.
 
 ## `needs_review`
 
@@ -760,16 +849,15 @@ Type:
 boolean
 ```
 
-Use `true` when:
+Use `true` when the action is explicitly supported but:
 
 * the deadline is vague
 * the responsible party is unclear
-* the action is implied rather than explicit
 * evidence verification fails
 * date normalization is uncertain
 * the model output cannot be fully trusted
 
-Use `false` only when the action is explicit and verifiable.
+Use `false` only when the explicit action and its key attributes are verifiable.
 
 ## `uncertainty_reason`
 
@@ -798,48 +886,22 @@ Example:
 
 # 6. Node mapping from Python to React
 
-Python response:
+Node maps Python `snake_case` fields to React `camelCase` per §1.
 
-```json
-{
-  "title": "Repeat CBC blood test",
-  "type": "test",
-  "deadline_text": "within seven days",
-  "normalized_deadline": "2026-06-12",
-  "priority": "high",
-  "evidence": "The patient should repeat a CBC within seven days.",
-  "needs_review": false,
-  "uncertainty_reason": null
-}
+Node then adds workflow and persistence fields:
+
+```text
+id
+noteId
+reviewStatus
+completionStatus
+createdAt
+updatedAt
 ```
 
-Node converts it into:
+Newly extracted actions start as `reviewStatus: pending` and `completionStatus: open`.
 
-```json
-{
-  "title": "Repeat CBC blood test",
-  "type": "test",
-  "deadlineText": "within seven days",
-  "normalizedDeadline": "2026-06-12",
-  "priority": "high",
-  "evidence": "The patient should repeat a CBC within seven days.",
-  "needsReview": false,
-  "uncertaintyReason": null
-}
-```
-
-Node then adds:
-
-```json
-{
-  "id": "action_01JYXYZ456",
-  "noteId": "note_01JYABC123",
-  "reviewStatus": "pending",
-  "completionStatus": "open",
-  "createdAt": "2026-06-05T15:30:00.000Z",
-  "updatedAt": "2026-06-05T15:30:00.000Z"
-}
-```
+See §4.2 for a Python action example and §3.2 for the full Node API response shape after mapping.
 
 ---
 
@@ -896,7 +958,7 @@ Body:
 }
 ```
 
-## Unsupported file type
+## Invalid request
 
 Status:
 
@@ -909,11 +971,20 @@ Body:
 ```json
 {
   "error": {
-    "code": "UNSUPPORTED_FILE_TYPE",
-    "message": "Only .txt files are supported."
+    "code": "INVALID_REQUEST",
+    "message": "The request body is invalid."
   }
 }
 ```
+
+Used when a request body is malformed or invalid, including PATCH bodies with:
+
+* unsupported fields
+* no editable fields
+* invalid enum values
+* invalid field types
+
+The `message` may describe the specific validation failure.
 
 ## Note not found
 
@@ -1246,85 +1317,34 @@ React must reject:
 * empty files
 * files that exceed the configured note-length limit
 
+Unsupported file type is a **React-side validation error**. React shows a client message such as `Only .txt files are supported.` and does not send the file to Node.
+
+Node receives only:
+
+```json
+{
+  "text": "..."
+}
+```
+
 Node must still validate the final text because frontend validation cannot be trusted.
 
 ---
 
 # 12. Security and privacy boundaries
 
-This portfolio project uses fictional medical data only.
+Contract-level rules that constrain service behavior:
 
-The system must not:
+* API keys must never be returned to React.
+* React must not call the LLM provider directly.
+* Browser-facing error responses must not include full note text.
+* Real patient data must not be used in this portfolio implementation.
 
-* store real patient information
-* log complete note content
-* expose LLM API keys
-* send provider credentials to React
-* allow React to call the LLM directly
-* claim clinical accuracy
-* claim HIPAA compliance
-* claim production readiness
-
-The system extracts explicit follow-up actions only.
-
-It does not:
-
-* diagnose
-* recommend treatment
-* prescribe medication
-* alter dosage
-* verify medical correctness
-* replace human review
+Broader safety and product boundaries are documented in [architecture.md](architecture.md) and [README.md](../README.md).
 
 ---
 
-# 13. Contract ownership by service
-
-## React owns
-
-* user input
-* `.txt` file reading
-* loading state
-* error state
-* rendering actions
-* review controls
-* edit controls
-* completion controls
-
-## Node owns
-
-* public application API
-* request validation
-* Python-service communication
-* Python-to-React field mapping
-* persistence
-* IDs
-* review status
-* completion status
-* workflow validation
-* application error responses
-
-## Python owns
-
-* prompt construction
-* LLM provider communication
-* structured-output parsing
-* Pydantic validation
-* evidence verification
-* uncertainty handling
-* AI-specific errors
-
-## SQLite owns
-
-* persisted notes
-* persisted actions
-* current review state
-* current completion state
-* created and updated timestamps
-
----
-
-# 14. Contract-change policy
+# 13. Contract-change policy
 
 Before changing this document:
 
@@ -1337,6 +1357,8 @@ Before changing this document:
 7. Update tests.
 8. Update documentation examples.
 
-Cursor agents must not independently modify this file while working in parallel.
+Contract changes must be coordinated and owned by one contributor at a time.
 
-One agent or the project owner must be responsible for contract changes.
+Automated coding agents must not modify this file independently while affected services are being changed in parallel.
+
+Service ownership and architectural boundaries are documented in [architecture.md](architecture.md).
