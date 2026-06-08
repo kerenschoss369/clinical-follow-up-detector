@@ -13,7 +13,7 @@ def make_action(**overrides: object) -> dict:
         "type": "test",
         "deadline_text": "within seven days",
         "normalized_deadline": "2026-06-12",
-        "priority": "high",
+        "priority": "medium",
         "evidence": DEFAULT_NOTE,
         "needs_review": False,
         "uncertainty_reason": None,

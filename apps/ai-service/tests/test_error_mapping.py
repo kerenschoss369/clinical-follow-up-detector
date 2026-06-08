@@ -33,6 +33,7 @@ def test_provider_timeout_returns_504(
     assert response.status_code == 504
     body = response.json()
     assert body["error"]["code"] == "LLM_TIMEOUT"
+    assert DEFAULT_NOTE not in response.text
 
 
 def test_provider_failure_returns_502(
@@ -52,6 +53,7 @@ def test_provider_failure_returns_502(
     assert response.status_code == 502
     body = response.json()
     assert body["error"]["code"] == "LLM_PROVIDER_ERROR"
+    assert DEFAULT_NOTE not in response.text
 
 
 def test_invalid_model_output_returns_502(
@@ -71,6 +73,7 @@ def test_invalid_model_output_returns_502(
     assert response.status_code == 502
     body = response.json()
     assert body["error"]["code"] == "INVALID_MODEL_OUTPUT"
+    assert DEFAULT_NOTE not in response.text
 
 
 def test_whitespace_text_returns_400(client: TestClient) -> None:
@@ -83,6 +86,7 @@ def test_whitespace_text_returns_400(client: TestClient) -> None:
     body = response.json()
     assert body["error"]["code"] == "INVALID_EXTRACTION_REQUEST"
     assert body["error"]["message"] == "Note text is required."
+    assert DEFAULT_NOTE not in response.text
 
 
 def test_invalid_reference_date_returns_400(client: TestClient) -> None:
@@ -95,3 +99,4 @@ def test_invalid_reference_date_returns_400(client: TestClient) -> None:
     body = response.json()
     assert body["error"]["code"] == "INVALID_EXTRACTION_REQUEST"
     assert body["error"]["message"] == "The extraction request is invalid."
+    assert DEFAULT_NOTE not in response.text

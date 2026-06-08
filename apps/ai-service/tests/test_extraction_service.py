@@ -47,7 +47,7 @@ async def test_multiple_valid_actions() -> None:
                     type="test",
                     deadline_text="within seven days",
                     normalized_deadline="2026-06-12",
-                    priority="high",
+                    priority="medium",
                     evidence="The patient should repeat a CBC within seven days.",
                     needs_review=False,
                     uncertainty_reason=None,
