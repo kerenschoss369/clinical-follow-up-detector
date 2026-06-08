@@ -71,16 +71,27 @@ export function ActionCard({
     >
       <header className="action-card__header">
         {!isEditing ? (
-          <h3 className="action-card__title">{action.title}</h3>
+          <div className="action-card__title-row">
+            <h3 className="action-card__title">{action.title}</h3>
+            {action.needsReview ? (
+              <span className="needs-review-flag" role="status">
+                Needs review
+              </span>
+            ) : null}
+          </div>
         ) : null}
-        <div className="action-card__badges">
+        <div className="action-card__review-status">
+          <span
+            className={`review-status-indicator review-status-indicator--${review.variant}`}
+            role="status"
+          >
+            {review.label}
+          </span>
+        </div>
+        <div className="action-card__meta-badges">
           <StatusBadge variant="type" value={formatLabel(action.type)} />
           <StatusBadge variant="priority" value={formatLabel(action.priority)} />
-          <StatusBadge variant={review.variant} value={review.label} />
           <StatusBadge variant={completion.variant} value={completion.label} />
-          {action.needsReview ? (
-            <StatusBadge variant="needsReview" value="Needs review" />
-          ) : null}
         </div>
       </header>
 
@@ -105,13 +116,17 @@ export function ActionCard({
         </div>
       )}
 
-      {action.needsReview && action.uncertaintyReason ? (
-        <p className="action-card__uncertainty" role="note">
-          {action.uncertaintyReason}
-        </p>
-      ) : null}
-
       <EvidenceSection evidence={action.evidence} />
+
+      {action.needsReview ? (
+        <section className="action-card__uncertainty-section" aria-label="Why review is needed">
+          <h4 className="action-card__label">Why review is needed</h4>
+          <p className="action-card__uncertainty" role="note">
+            {action.uncertaintyReason ??
+              'This action was flagged for human review before it can be confirmed.'}
+          </p>
+        </section>
+      ) : null}
 
       {isUpdating ? (
         <p className="action-card__updating" role="status" aria-live="polite">

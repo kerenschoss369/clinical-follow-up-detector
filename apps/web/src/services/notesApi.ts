@@ -1,4 +1,4 @@
-import type { AnalyzeNoteResponse } from '../types/api';
+import type { AnalyzeNoteResponse, GetNoteResponse } from '../types/api';
 import type { Action, ActionType, CompletionStatus, Priority, ReviewStatus } from '../types/domain';
 
 const ANALYZE_URL = '/api/notes/analyze';
@@ -11,6 +11,11 @@ const NETWORK_ERROR_MESSAGE =
 
 const UNAVAILABLE_ERROR_MESSAGE =
   'The note could not be analyzed because the API server is unavailable. Start the Node API on port 3000.';
+
+const GET_FALLBACK_ERROR_MESSAGE =
+  'The saved note could not be loaded. Please try again.';
+
+const GET_NETWORK_ERROR_MESSAGE = 'Unable to reach the server.';
 
 const ACTION_TYPES: readonly ActionType[] = [
   'appointment',
@@ -109,17 +114,8 @@ function parseAction(value: unknown): Action | null {
   };
 }
 
-function parseAnalyzeResponse(body: unknown): AnalyzeNoteResponse | null {
-  if (!isRecord(body)) {
-    return null;
-  }
-
-  const note = body.note;
-  if (!isRecord(note) || !isString(note.id) || !isString(note.createdAt)) {
-    return null;
-  }
-
-  if (!Array.isArray(body.actions)) {
+function parseActions(body: unknown): Action[] | null {
+  if (!isRecord(body) || !Array.isArray(body.actions)) {
     return null;
   }
 
@@ -132,9 +128,57 @@ function parseAnalyzeResponse(body: unknown): AnalyzeNoteResponse | null {
     actions.push(action);
   }
 
+  return actions;
+}
+
+function parseAnalyzeResponse(body: unknown): AnalyzeNoteResponse | null {
+  if (!isRecord(body)) {
+    return null;
+  }
+
+  const note = body.note;
+  if (!isRecord(note) || !isString(note.id) || !isString(note.createdAt)) {
+    return null;
+  }
+
+  const actions = parseActions(body);
+  if (!actions) {
+    return null;
+  }
+
   return {
     note: {
       id: note.id,
+      createdAt: note.createdAt,
+    },
+    actions,
+  };
+}
+
+function parseGetNoteResponse(body: unknown): GetNoteResponse | null {
+  if (!isRecord(body)) {
+    return null;
+  }
+
+  const note = body.note;
+  if (
+    !isRecord(note) ||
+    !isString(note.id) ||
+    !isString(note.text) ||
+    !isString(note.createdAt)
+  ) {
+    return null;
+  }
+
+  const actions = parseActions(body);
+  if (!actions) {
+    return null;
+  }
+
+  return {
+    note: {
+      id: note.id,
+      text: note.text,
       createdAt: note.createdAt,
     },
     actions,
@@ -153,6 +197,13 @@ export class AnalyzeNoteError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'AnalyzeNoteError';
+  }
+}
+
+export class GetNoteError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'GetNoteError';
   }
 }
 
@@ -189,6 +240,30 @@ export async function analyzeNote(text: string): Promise<AnalyzeNoteResponse> {
   const parsed = parseAnalyzeResponse(body);
   if (!parsed) {
     throw new AnalyzeNoteError(FALLBACK_ERROR_MESSAGE);
+  }
+
+  return parsed;
+}
+
+export async function getNote(noteId: string): Promise<GetNoteResponse> {
+  let response: Response;
+
+  try {
+    response = await fetch(`/api/notes/${encodeURIComponent(noteId)}`);
+  } catch {
+    throw new GetNoteError(GET_NETWORK_ERROR_MESSAGE);
+  }
+
+  const body = await readResponseBody(response);
+
+  if (!response.ok) {
+    const apiMessage = parseApiErrorBody(body);
+    throw new GetNoteError(apiMessage ?? GET_FALLBACK_ERROR_MESSAGE);
+  }
+
+  const parsed = parseGetNoteResponse(body);
+  if (!parsed) {
+    throw new GetNoteError(GET_FALLBACK_ERROR_MESSAGE);
   }
 
   return parsed;

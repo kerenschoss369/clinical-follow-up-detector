@@ -5,6 +5,7 @@ import type {
   NoteSummary,
   Priority,
   ReviewStatus,
+  SavedNote,
 } from './domain';
 
 export interface AnalyzeNoteRequest {
@@ -13,6 +14,11 @@ export interface AnalyzeNoteRequest {
 
 export interface AnalyzeNoteResponse {
   note: NoteSummary;
+  actions: Action[];
+}
+
+export interface GetNoteResponse {
+  note: SavedNote;
   actions: Action[];
 }
 
@@ -25,7 +31,7 @@ export interface ApiErrorResponse {
 
 export type AnalysisState =
   | { status: 'idle' }
-  | { status: 'loading' }
+  | { status: 'loading'; operation: 'analyze' | 'load' }
   | { status: 'success'; note: NoteSummary; actions: Action[] }
   | { status: 'error'; message: string };
 

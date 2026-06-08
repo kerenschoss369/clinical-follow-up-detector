@@ -17,6 +17,12 @@ export interface NoteSummary {
   createdAt: string;
 }
 
+export interface SavedNote {
+  id: string;
+  text: string;
+  createdAt: string;
+}
+
 export interface Action {
   id: string;
   noteId: string;

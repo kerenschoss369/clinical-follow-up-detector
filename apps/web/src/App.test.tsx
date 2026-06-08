@@ -6,6 +6,7 @@ import type { Action } from './types/domain';
 import {
   analyzeSuccessResponse,
   createAction,
+  getNoteSuccessResponse,
   patchSuccessResponse,
   sampleNoteText,
 } from './test/fixtures';
@@ -133,6 +134,78 @@ describe('analyze flow', () => {
     });
 
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('shows note id after successful analyze', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.mocked(fetch);
+
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(201, analyzeSuccessResponse([createAction()])),
+    );
+
+    render(<App />);
+    await user.type(
+      screen.getByRole('textbox', { name: /clinical note/i }),
+      sampleNoteText,
+    );
+    await user.click(screen.getByRole('button', { name: /analyze note/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('note_01')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/Note ID:/i)).toBeInTheDocument();
+  });
+
+  it('loads a saved note from the URL on mount', async () => {
+    const fetchMock = vi.mocked(fetch);
+    window.history.replaceState({}, '', '/?noteId=note_01');
+
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(
+        200,
+        getNoteSuccessResponse([createAction()], 'Loaded note text from SQLite.'),
+      ),
+    );
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Loaded note text from SQLite.')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('note_01')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith('/api/notes/note_01');
+  });
+
+  it('loads a saved note from the load form', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.mocked(fetch);
+
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(
+        200,
+        getNoteSuccessResponse(
+          [createAction({ id: 'action_saved', title: 'Saved action' })],
+          'Saved note from form.',
+          'note_saved',
+        ),
+      ),
+    );
+
+    render(<App />);
+
+    const loadInput = screen.getByRole('textbox', { name: /load saved note by id/i });
+    await user.type(loadInput, 'note_saved');
+    await user.click(screen.getByRole('button', { name: /load note/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Saved note from form.')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('note_saved')).toBeInTheDocument();
+    expect(screen.getByText('Saved action')).toBeInTheDocument();
   });
 
   it('shows controlled error on analyze failure', async () => {
@@ -497,6 +570,7 @@ describe('action workflow', () => {
       initialAction: Action = createAction({ id: 'action_evidence', evidence }),
     ) {
       cleanup();
+      window.history.replaceState({}, '', '/');
       vi.stubGlobal('fetch', vi.fn());
       const user = userEvent.setup();
       const fetchMock = vi.mocked(fetch);
@@ -653,6 +727,7 @@ describe('action workflow', () => {
     await analyzeWithActions(user, [reviewAction]);
 
     expect(screen.getByText('Needs review')).toBeInTheDocument();
+    expect(screen.getByText('Why review is needed')).toBeInTheDocument();
     expect(
       screen.getByText('The note says soon and does not provide an exact deadline.'),
     ).toBeInTheDocument();
@@ -683,6 +758,25 @@ describe('action workflow', () => {
     expect(screen.getByText('Needs review')).toBeInTheDocument();
     expect(
       screen.getByText('The note says soon and does not provide an exact deadline.'),
+    ).toBeInTheDocument();
+  });
+
+  it('shows Why review is needed when needsReview is true without uncertaintyReason', async () => {
+    const user = userEvent.setup();
+    const reviewAction = createAction({
+      id: 'action_review_fallback',
+      needsReview: true,
+      uncertaintyReason: null,
+    });
+
+    await analyzeWithActions(user, [reviewAction]);
+
+    expect(screen.getByText('Needs review')).toBeInTheDocument();
+    expect(screen.getByText('Why review is needed')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'This action was flagged for human review before it can be confirmed.',
+      ),
     ).toBeInTheDocument();
   });
 });

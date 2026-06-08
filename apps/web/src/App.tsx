@@ -1,15 +1,18 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import './App.css';
 import { AnalyzeButton } from './components/AnalyzeButton';
 import { ActionList } from './components/ActionList';
-import { NoteInput } from './components/NoteInput';
+import { NoteSourcePanel } from './components/NoteSourcePanel';
+import { NoteSessionPanel } from './components/NoteSessionPanel';
 import { UpdateActionError, updateAction } from './services/actionsApi';
-import { AnalyzeNoteError, analyzeNote } from './services/notesApi';
+import { AnalyzeNoteError, GetNoteError, analyzeNote, getNote } from './services/notesApi';
 import type { AnalysisState, UpdateActionRequest } from './types/api';
 import { validateNoteText } from './utils/noteValidation';
+import { getNoteIdFromUrl, setNoteIdInUrl } from './utils/noteUrl';
 
 function App() {
   const [noteText, setNoteText] = useState('');
+  const [loadNoteId, setLoadNoteId] = useState('');
   const [clientValidationError, setClientValidationError] = useState<string | null>(
     null,
   );
@@ -22,8 +25,94 @@ function App() {
   >({});
 
   const isLoading = analysisState.status === 'loading';
+  const isAnalyzing =
+    analysisState.status === 'loading' && analysisState.operation === 'analyze';
+  const isLoadingNote =
+    analysisState.status === 'loading' && analysisState.operation === 'load';
   const textValidationError = validateNoteText(noteText);
   const isAnalyzeDisabled = textValidationError !== null;
+
+  const loadSavedNote = async (noteId: string) => {
+    const trimmedId = noteId.trim();
+    if (trimmedId === '') {
+      return;
+    }
+
+    setClientValidationError(null);
+    setAnalysisState({ status: 'loading', operation: 'load' });
+    setUpdatingActionIds([]);
+    setActionUpdateErrors({});
+
+    try {
+      const result = await getNote(trimmedId);
+      setNoteText(result.note.text);
+      setLoadNoteId(result.note.id);
+      setNoteIdInUrl(result.note.id);
+      setAnalysisState({
+        status: 'success',
+        note: {
+          id: result.note.id,
+          createdAt: result.note.createdAt,
+        },
+        actions: result.actions,
+      });
+    } catch (error) {
+      const message =
+        error instanceof GetNoteError
+          ? error.message
+          : 'The saved note could not be loaded. Please try again.';
+      setAnalysisState({ status: 'error', message });
+    }
+  };
+
+  useEffect(() => {
+    const noteIdFromUrl = getNoteIdFromUrl();
+    if (!noteIdFromUrl) {
+      return;
+    }
+
+    let cancelled = false;
+
+    void (async () => {
+      setClientValidationError(null);
+      setAnalysisState({ status: 'loading', operation: 'load' });
+      setUpdatingActionIds([]);
+      setActionUpdateErrors({});
+
+      try {
+        const result = await getNote(noteIdFromUrl);
+        if (cancelled) {
+          return;
+        }
+
+        setNoteText(result.note.text);
+        setLoadNoteId(result.note.id);
+        setNoteIdInUrl(result.note.id);
+        setAnalysisState({
+          status: 'success',
+          note: {
+            id: result.note.id,
+            createdAt: result.note.createdAt,
+          },
+          actions: result.actions,
+        });
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        const message =
+          error instanceof GetNoteError
+            ? error.message
+            : 'The saved note could not be loaded. Please try again.';
+        setAnalysisState({ status: 'error', message });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleAnalyze = async () => {
     const validationError = validateNoteText(noteText);
@@ -33,12 +122,14 @@ function App() {
     }
 
     setClientValidationError(null);
-    setAnalysisState({ status: 'loading' });
+    setAnalysisState({ status: 'loading', operation: 'analyze' });
     setUpdatingActionIds([]);
     setActionUpdateErrors({});
 
     try {
       const result = await analyzeNote(noteText);
+      setLoadNoteId(result.note.id);
+      setNoteIdInUrl(result.note.id);
       setAnalysisState({
         status: 'success',
         note: result.note,
@@ -114,44 +205,62 @@ function App() {
       </header>
 
       <main className="app__main">
-        <NoteInput
-          value={noteText}
-          onChange={setNoteText}
-          onClientError={setClientValidationError}
-          disabled={isLoading}
-        />
+        <section className="app__input-section" aria-label="Note input">
+          <NoteSourcePanel
+            loadNoteId={loadNoteId}
+            onLoadNoteIdChange={setLoadNoteId}
+            onLoadNote={() => void loadSavedNote(loadNoteId)}
+            noteText={noteText}
+            onNoteTextChange={setNoteText}
+            onClientError={setClientValidationError}
+            disabled={isLoading}
+            isLoadingNote={isLoadingNote}
+          />
 
-        {clientValidationError ? (
-          <p className="app__validation-error" role="alert">
-            {clientValidationError}
-          </p>
-        ) : null}
+          {clientValidationError ? (
+            <p className="app__validation-error" role="alert">
+              {clientValidationError}
+            </p>
+          ) : null}
 
-        <AnalyzeButton
-          disabled={isAnalyzeDisabled}
-          isLoading={isLoading}
-          onClick={handleAnalyze}
-        />
+          <AnalyzeButton
+            disabled={isAnalyzeDisabled}
+            isLoading={isAnalyzing}
+            onClick={handleAnalyze}
+          />
 
-        {analysisState.status === 'loading' ? (
-          <p className="app__loading" role="status" aria-live="polite">
-            Analyzing note...
-          </p>
-        ) : null}
+          {isAnalyzing ? (
+            <p className="app__loading" role="status" aria-live="polite">
+              Analyzing note...
+            </p>
+          ) : null}
 
-        {analysisState.status === 'error' ? (
-          <p className="app__error" role="alert">
-            {analysisState.message}
-          </p>
-        ) : null}
+          {isLoadingNote ? (
+            <p className="app__loading" role="status" aria-live="polite">
+              Loading saved note...
+            </p>
+          ) : null}
+
+          {analysisState.status === 'error' ? (
+            <p className="app__error" role="alert">
+              {analysisState.message}
+            </p>
+          ) : null}
+        </section>
 
         {analysisState.status === 'success' ? (
-          <ActionList
-            actions={analysisState.actions}
-            updatingActionIds={updatingActionIds}
-            actionUpdateErrors={actionUpdateErrors}
-            onActionUpdate={handleActionUpdate}
-          />
+          <section className="app__results-section" aria-label="Analysis results">
+            <NoteSessionPanel
+              noteId={analysisState.note.id}
+              createdAt={analysisState.note.createdAt}
+            />
+            <ActionList
+              actions={analysisState.actions}
+              updatingActionIds={updatingActionIds}
+              actionUpdateErrors={actionUpdateErrors}
+              onActionUpdate={handleActionUpdate}
+            />
+          </section>
         ) : null}
       </main>
     </div>

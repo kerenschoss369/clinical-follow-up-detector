@@ -1,4 +1,4 @@
-import type { AnalyzeNoteResponse } from '../types/api';
+import type { AnalyzeNoteResponse, GetNoteResponse } from '../types/api';
 import type { Action } from '../types/domain';
 
 const TIMESTAMP = '2026-06-05T15:30:00.000Z';
@@ -52,4 +52,19 @@ export function analyzeSuccessResponse(
 
 export function patchSuccessResponse(action: Action): { action: Action } {
   return { action };
+}
+
+export function getNoteSuccessResponse(
+  actions: Action[],
+  text: string = sampleNoteText,
+  noteId: string = 'note_01',
+): GetNoteResponse {
+  return {
+    note: {
+      id: noteId,
+      text,
+      createdAt: TIMESTAMP,
+    },
+    actions,
+  };
 }

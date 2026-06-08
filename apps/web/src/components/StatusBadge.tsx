@@ -1,12 +1,4 @@
-type StatusBadgeVariant =
-  | 'type'
-  | 'priority'
-  | 'needsReview'
-  | 'pending'
-  | 'confirmed'
-  | 'rejected'
-  | 'open'
-  | 'completed';
+type StatusBadgeVariant = 'type' | 'priority' | 'open' | 'completed';
 
 interface StatusBadgeProps {
   variant: StatusBadgeVariant;
